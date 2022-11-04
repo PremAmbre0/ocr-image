@@ -27,7 +27,7 @@ export default new Vuex.Store({
         axios({
           ...config,
           headers: {
-            Authorization: "eyJraWQiOiJrTWxnSlwvYUxQSngrNkhHQ3VpWkkzY2pDR29hVmU2REhvZ1F2TmZGU21FND0iLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI2NjMxYzU5YS05NWVmLTQ3ZGUtYjgxYS0zYjc0MTMzNTYwMDAiLCJjb2duaXRvOmdyb3VwcyI6WyJ0ZXN0Z3JvdXAiLCJjb25maWd0b29sIl0sImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX05WdmZNOGdwbiIsImNsaWVudF9pZCI6IjdvNjJpZnUzbXI3Z3VsbHFrMjA5bGhtNW85Iiwib3JpZ2luX2p0aSI6ImYxNzU4YTk4LWZkZGYtNGQ2Yy04MTE0LWU1OWRlZWVmMDY5YyIsImV2ZW50X2lkIjoiMzg5NjBjZjktNTc0Mi00NGNjLTk2NTYtYWFjNWEwZDQ0YjNmIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTY2NzU2NjE2MSwiZXhwIjoxNjY3NTczNDU0LCJpYXQiOjE2Njc1Njk4NTQsImp0aSI6IjljYWM3ZjYyLWI3YjItNDA2Mi1hM2YwLTVlZWVhMDhjOWFlNCIsInVzZXJuYW1lIjoidGFoZXIifQ.XYHe_ZjSNOkpyo80rfv8SXvT730ZyjeyrhqkpjzrXd3cYD-WU-Vagw2tLyHGYZbu6ChIT_zUg1DBsZhw6jlvV6wTPnHe158fumdIQ6hdFwaGEo1yU2-u0dqXuK15CfQc51Pbh2cpHCrH-m-kBWn6U751VWcKSo6J8DesSkzLjF7Wlsr5vvZPUBtKQ2hEYEb8KjuoXJ3YTCKJPl2dyJ-iajLb5Lx2lizlhx68btOZzoGtQkBwTpkCGeEWbc3FJDcdo-mkM2dQIJiREEuebhSXtcZ4nUXdR1cNlW3lLd1jriJhmal7gNchxMdx7o-TNk8-g4P32lO___lAQlA_PAdOXQ"
+            Authorization: "eyJraWQiOiJrTWxnSlwvYUxQSngrNkhHQ3VpWkkzY2pDR29hVmU2REhvZ1F2TmZGU21FND0iLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI2NjMxYzU5YS05NWVmLTQ3ZGUtYjgxYS0zYjc0MTMzNTYwMDAiLCJjb2duaXRvOmdyb3VwcyI6WyJ0ZXN0Z3JvdXAiLCJjb25maWd0b29sIl0sImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX05WdmZNOGdwbiIsImNsaWVudF9pZCI6IjdvNjJpZnUzbXI3Z3VsbHFrMjA5bGhtNW85Iiwib3JpZ2luX2p0aSI6IjU0MTYyNTJiLWQ4YjAtNDIwNC04ZTVlLWFiZTk3NjdiYzNkZSIsImV2ZW50X2lkIjoiMzExMDE0NjYtNjE2Ni00ZTZmLTkyMjYtZjgwMmQ5OGQzMWFkIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTY2NzU3NzA4MSwiZXhwIjoxNjY3NTgwNjgxLCJpYXQiOjE2Njc1NzcwODEsImp0aSI6ImZjZmRlMGY3LTNiMjYtNGFmZS05MjE2LTBlYTQ2NDNlMmU2OSIsInVzZXJuYW1lIjoidGFoZXIifQ.eZ0Z9V39TtPzLq9HuObSGcwqm1LiUc9eZhU_W_AjcQCgRXkODVzh2V8I5kCYOO_RNJ7jEfK4wLJNPlMBnTMfj-YTTJKZkw0keY0A9-0oWJvky_--BsuoOUzP17PebCob2RI4YdvgM8fy153pyA_OuMG5bKFa7Q9q19DVS6Ht2BQc_1SmRsLyWUZqVBHWVqR35kL8pih84R5gvAUH0YKAVTPKFZwxFycee8cxkE9tFVZTxLecA9tvFSpVB9PVQk0N6q3eQGogFgea61v39Geaz67-oq34kwcvlmh8D-_KfPUR7A-0mlwk4Cp14p1JCNi6E-ndtFGuUT-JPN-TMFTMug"
           }
         })
           .then((response) => {
@@ -49,6 +49,7 @@ export default new Vuex.Store({
         { root: true }
       ).then((response) => {
         commit("setConfig", response.config)
+        sessionStorage.setItem('config', JSON.stringify(response.config));
       }).catch((error) => {
         console.error(error);
       })
