@@ -7,7 +7,7 @@
       <v-spacer></v-spacer>
       <template>
         <v-card flat color="transparent" width="20%">
-          <v-card-text class="pa-0" >
+          <v-card-text class="pa-0">
             <v-slider v-model="zoom" dense thumb-label="always" thumb-size="20" min="0" max="100" step="1" hide-details>
               <template v-slot:prepend>
                 <v-icon color="black">
@@ -15,10 +15,10 @@
                 </v-icon>
               </template>
               <template v-slot:append>
-                <v-icon color="black" >
+                <v-icon color="black">
                   mdi-magnify-plus-outline
                 </v-icon>
-                </template>
+              </template>
             </v-slider>
           </v-card-text>
         </v-card>
@@ -32,7 +32,7 @@
         </v-tooltip>
         <v-tooltip bottom>
           <template v-slot:activator="{ on, attrs }">
-            <v-btn v-bind="attrs" v-on="on" icon>
+            <v-btn v-bind="attrs" v-on="on" icon @click="triggerFileInput">
               <v-icon color="black">mdi-upload</v-icon>
             </v-btn>
           </template>
@@ -56,6 +56,7 @@
         </v-tooltip>
       </template>
     </v-app-bar>
+    <input ref="fileInput" type="file" @input="handleInput" style="height: 0; width: 0;"/>
 
     <v-main>
       <router-view />
@@ -64,20 +65,36 @@
 </template>
 
 <script>
+import {mapActions} from "vuex";
 export default {
   name: "App",
 
   data: () => ({
     zoom: 50,
   }),
+  methods: {
+    ...mapActions(['importFile']),
+    triggerFileInput() {
+      this.$refs.fileInput.click();
+    },
+    handleInput(e) {
+      let file = e.target.files[e.target.files.length - 1];
+      if (file.type == "application/zip") {
+        let data = new FormData();
+        data.append('file', file);
+        this.importFile(data)
+      }
+    }
+  }
 };
 </script>
 
 <style>
-.v-card{
+.v-card {
   padding-top: 1%;
 }
-.v-input{
+
+.v-input {
   margin-top: 5%;
 }
 </style>
