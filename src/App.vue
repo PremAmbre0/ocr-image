@@ -46,14 +46,14 @@
           </template>
           <span>Export Zip for current session</span>
         </v-tooltip>
-        <v-tooltip bottom>
+        <!-- <v-tooltip bottom>
           <template v-slot:activator="{ on, attrs }">
             <v-btn v-bind="attrs" v-on="on" icon>
               <v-icon color="black">mdi-logout</v-icon>
             </v-btn>
           </template>
           <span>Logout</span>
-        </v-tooltip>
+        </v-tooltip> -->
       </template>
     </v-app-bar>
     <input ref="fileInput" type="file" @input="handleInput" style="height: 0; width: 0;"/>
