@@ -15,7 +15,14 @@
                     :src="'http://34.100.140.210/files/' + config.id + '/' + this.selectedPageConfig.id + '.png'" alt=""
                     @load="setPageConstants">
                 <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
-                    :class="'bounding-box ' + getSanitizedFieldName(field)">
+                    :class="'bounding-box ' + getSanitizedFieldName(field)" @click="setSelectedField(field, key)">
+                    <div data-v-0be0641e="" class="bb_side right"></div>
+                    <div data-v-0be0641e="" class="bb_side top"></div>
+                    <div data-v-0be0641e="" class="bb_side bottom"></div>
+                    <div data-v-0be0641e="" class="bb_side left"></div>
+                </div>
+                <div v-for="field in linkedFields" :key="`${field}isLinked}`"
+                    :class="'bounding-box ' + getSanitizedFieldName(field) +'isLinked'"  @click="setSelectedField(field, key)">
                     <div data-v-0be0641e="" class="bb_side right"></div>
                     <div data-v-0be0641e="" class="bb_side top"></div>
                     <div data-v-0be0641e="" class="bb_side bottom"></div>
@@ -37,10 +44,14 @@ export default {
             selectedPageConfig: null,
             imageToBeTaggedBoundingCLient: null,
             imageContainerBoundingCLient: null,
-            changeInDimensionsOfRenderedImageWRTOriginalImage: null,
+            changeInWidthOfRenderedImageWRTOriginalImage: null,
+            changeInHeightOfRenderedImageWRTOriginalImage: null,
             relativeTopOfTheImageToBeTagged: null,
             relativeTop: null,
             relativeLeft: null,
+            selectedField: null,
+            BBToBeEditied: null,
+            linkedFields: [],
         }
     },
     created() {
@@ -48,6 +59,17 @@ export default {
             this.setConfig(JSON.parse(sessionStorage.getItem('config')));
         }
         this.selectedPageConfig = this.config.pages[0];
+        console.log(this.selectedPageConfig)
+        const fields = new Object(this.config.pages[0].fields);
+        for (const field in fields) {
+            if('question' in this.selectedPageConfig.fields[field]) {
+                this.linkedFields.push(field)
+            }
+        }
+        console.log(this.linkedFields)
+        // window.addEventListener('mousemove', this.handleMouseMove());
+        // window.addEventListener('mouseup', this.handleMouseUp());
+        window.addEventListener('resize', this.handleWindowResize());
     },
     computed: {
         ...mapGetters(['config']),
@@ -65,12 +87,18 @@ export default {
 
             this.imageToBeTaggedBoundingCLient = image.getBoundingClientRect()
             this.imageContainerBoundingCLient = imageContainer.getBoundingClientRect()
-            this.changeInDimensionsOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.height / (this.selectedPageConfig.height / 100), 3);
+            this.changeInWidthOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.width / (this.selectedPageConfig.width / 100), 3);
+            this.changeInHeightOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.height / (this.selectedPageConfig.height / 100), 3);
 
             this.relativeTop = this.toFixedDecimal(image.getBoundingClientRect().top + window.scrollY - this.imageContainerBoundingCLient.top + window.scrollY, 3)
-            this.relativeLeft = this.toFixedDecimal(image.getBoundingClientRect().left + window.scrollY - this.imageContainerBoundingCLient.left + window.scrollY, 3)
-
+            this.relativeLeft = this.toFixedDecimal(image.getBoundingClientRect().left - this.imageContainerBoundingCLient.left, 3)
+            console.log(this.relativeLeft,this.relativeTop)
             this.renderBoundingBoxes();
+        },
+        setSelectedField(field, key) {
+            if (field) {
+                this.selectedField = { name: field, ...key }
+            }
         },
         toFixedDecimal(num, decimal) {
             if (typeof (num) != "number") return
@@ -81,33 +109,44 @@ export default {
             for (const field in this.selectedPageConfig.fields) {
                 if ('question' in this.selectedPageConfig.fields[field]) {
                     this.updateStyleAttriutesOfBBForGivenLinkedField(field)
-                } else {
-                    this.updateStyleAttriutesOfBBForGivenField(field)
                 }
+                this.updateStyleAttriutesOfBBForGivenField(field)
             }
-            console.log(this.imageToBeTaggedBoundingCLient)
         },
         getBBCoordsForGivenField(field) {
 
-            let height = `${((field.h / 100) * this.changeInDimensionsOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.height / 100)}%`;
-            let width = `${((field.w / 100) * this.changeInDimensionsOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.width / 100)}%`;
-            let top = `${((field.y / 100) * this.changeInDimensionsOfRenderedImageWRTOriginalImage + this.relativeTop) / (this.imageContainerBoundingCLient.height / 100)}%`;
-            let left = `${((field.x / 100) * this.changeInDimensionsOfRenderedImageWRTOriginalImage + this.relativeLeft) / (this.imageContainerBoundingCLient.width / 100)}%`;
+            let height = `${((field.h / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.height / 100)}%`;
+            let width = `${((field.w / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.width / 100)}%`;
+            let top = `${((field.y / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage + this.relativeTop) / (this.imageContainerBoundingCLient.height / 100)}%`;
+            let left = `${((field.x / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft) / ((this.imageContainerBoundingCLient.width) / 100)}%`;
+
             return { height, width, top, left }
         },
-        updateStyleAttriutesOfBBForGivenLinkedField() {
-
+        updateStyleAttriutesOfBBForGivenLinkedField(field) {
+            let sanatizedFieldName = this.getSanitizedFieldName(field);  
+            let linkedBB = document.querySelector(`.${sanatizedFieldName}isLinked`);
+            let  filedObj = this.selectedPageConfig.fields[field]
+            const coords = this.getBBCoordsForGivenField(filedObj.question)
+            linkedBB.style.height = coords.height;
+            linkedBB.style.width = coords.width;
+            linkedBB.style.top = coords.top;
+            linkedBB.style.left = coords.left;
         },
         updateStyleAttriutesOfBBForGivenField(field) {
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let BB = document.querySelector(`.${sanatizedFieldName}`);
             const coords = this.getBBCoordsForGivenField(this.selectedPageConfig.fields[field])
-            // console.log(BB)
             BB.style.height = coords.height;
             BB.style.width = coords.width;
             BB.style.top = coords.top;
             BB.style.left = coords.left;
-        }
+        },
+        handleWindowResize() {
+            setTimeout(() => {
+                console.log('hui')
+                this.setPageConstants()
+            }, 100);
+        },
     }
 }
 </script>
@@ -157,12 +196,12 @@ export default {
         .bounding-box {
             border: 2px solid red;
             position: absolute;
-            background-color: rgba($color: red, $alpha: 0.25);
         }
 
         .image-wrapper img {
             width: 100%;
-            object-fit: object-fit;
+            object-fit:contain;
+            // opacity: 0;
 
         }
     }
