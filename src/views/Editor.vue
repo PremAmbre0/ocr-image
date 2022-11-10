@@ -16,19 +16,19 @@
                     @load="setPageConstants">
                 <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
                     :class="'bounding-box ' + getSanitizedFieldName(field)" @click="setSelectedField(field, key)"
-                    @mousemove="handleWindowMouseMove()" @mousedown="onBBDragStart($event, field)">
-                    <div data-v-0be0641e="" class="bb_side right"></div>
-                    <div data-v-0be0641e="" class="bb_side top"></div>
-                    <div data-v-0be0641e="" class="bb_side bottom"></div>
-                    <div data-v-0be0641e="" class="bb_side left"></div>
+                    @mousedown="startBBDrag($event, field)">
+                    <div class="bb_side right"></div>
+                    <div class="bb_side top"></div>
+                    <div class="bb_side bottom"></div>
+                    <div class="bb_side left"></div>
                 </div>
                 <div v-for="field in linkedFields" :key="`${field}isLinked}`"
                     :class="'bounding-box ' + getSanitizedFieldName(field) + 'isLinked'"
-                    @click="setSelectedField(field, key)">
-                    <div data-v-0be0641e="" class="bb_side right"></div>
-                    <div data-v-0be0641e="" class="bb_side top"></div>
-                    <div data-v-0be0641e="" class="bb_side bottom"></div>
-                    <div data-v-0be0641e="" class="bb_side left"></div>
+                    @click="setSelectedField(field)">
+                    <div class="bb_side right"></div>
+                    <div class="bb_side top"></div>
+                    <div class="bb_side bottom"></div>
+                    <div class="bb_side left"></div>
                 </div>
             </div>
         </div>
@@ -99,9 +99,9 @@ export default {
 
     },
     mounted() {
-        window.addEventListener('mousemove', this.handleWindowMouseMove());
+        // window.addEventListener('mousemove', this.handleWindowMouseMove());
         // window.addEventListener('mouseup', this.handleMouseUp());
-        window.addEventListener('resize',this.handleWindowResize);
+        window.addEventListener('resize', this.handleWindowResize);
     },
     computed: {
         ...mapGetters(['config']),
@@ -131,6 +131,9 @@ export default {
             if (field) {
                 this.selectedField = { name: field, ...key }
             }
+            else {
+                this.selectedField = { name: field, ...this.selectedPageConfig.fields[field] }
+            }
         },
         toFixedDecimal(num, decimal) {
             if (typeof (num) != "number") return
@@ -146,12 +149,15 @@ export default {
             }
         },
         getBBCoordsForGivenField(field) {
-
+            console.log(field)
             let height = `${((field.h / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.height / 100)}%`;
             let width = `${((field.w / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.width / 100)}%`;
             let top = `${((field.y / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage + this.relativeTop) / (this.imageContainerBoundingCLient.height / 100)}%`;
             let left = `${((field.x / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft) / ((this.imageContainerBoundingCLient.width) / 100)}%`;
-
+            // console.log("left:" + ((field.x / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft))
+            // console.log("top:" + ((field.y / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft))
+            // console.log("width:" + ((field.w / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage))
+            // console.log("height:" + ((field.h / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage))
             return { height, width, top, left }
         },
         updateStyleAttriutesOfBBForGivenLinkedField(field) {
@@ -168,6 +174,7 @@ export default {
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let BB = document.querySelector(`.${sanatizedFieldName}`);
             const coords = this.getBBCoordsForGivenField(this.selectedPageConfig.fields[field])
+            console.log(field, coords)
             BB.style.height = coords.height;
             BB.style.width = coords.width;
             BB.style.top = coords.top;
@@ -178,10 +185,43 @@ export default {
                 this.setPageConstants()
             }, 100);
         },
-        handleWindowMouseMove(){
 
-        },
-        onBBDragStart(){
+        startBBDrag(e, field) {
+            e = e || window.event;
+            e.preventDefault();
+
+            const dragBB = (e) => {
+                let newX = prevX - e.clientX;
+                let newY = prevY - e.clientY;
+
+                BB.style.top = bbTop - newY + "px";
+                BB.style.left = bbLeft - newX + "px";
+
+            }
+            const dragBBEnd = () => {
+                window.removeEventListener('mousemove', dragBB);
+                window.removeEventListener('mouseup', dragBBEnd);
+
+                // this.selectedPageConfig.fields[field].y = Math.trunc(BB.getBoundingClientRect().y - this.imageContainerBoundingCLient.y)
+                // this.selectedPageConfig.fields[field].x = Math.trunc(BB.getBoundingClientRect().x - this.imageContainerBoundingCLient.x)
+
+                // if ('question' in this.selectedPageConfig.fields[field]) {
+                //     this.updateStyleAttriutesOfBBForGivenLinkedField(field)
+                // }
+                // this.updateStyleAttriutesOfBBForGivenField(field);
+            }
+
+            let sanatizedFieldName = this.getSanitizedFieldName(field);
+            let BB = document.querySelector(`.${sanatizedFieldName}`);
+
+            window.addEventListener('mousemove', dragBB);
+            window.addEventListener('mouseup', dragBBEnd);
+
+            let bbTop = BB.getBoundingClientRect().y - this.imageContainerBoundingCLient.y
+            let bbLeft = BB.getBoundingClientRect().x - this.imageContainerBoundingCLient.x;
+
+            let prevX = e.clientX;
+            let prevY = e.clientY;
 
         }
 
@@ -212,6 +252,7 @@ export default {
             &-img {
                 border: 1px solid black;
                 width: 100%;
+                pointer-events: none;
                 object-fit: scale-down;
             }
 
