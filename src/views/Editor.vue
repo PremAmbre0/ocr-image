@@ -1,7 +1,7 @@
 <template>
     <div class="editor" v-if="config">
         <div class="image-list-container">
-            <div class="pages" v-for="page in config.pages" :key="page.id">
+            <div class="pages" v-for="page in config.pages" :key="page.id" @click="updateSelectedPage(page)">
                 <img class="pages-img" :src="'http://34.100.140.210/files/' + config.id + '/' + page.id + '.png'"
                     alt="">
                 <div class="pages-description">
@@ -14,22 +14,26 @@
                 <img class="image-wrapper-image"
                     :src="'http://34.100.140.210/files/' + config.id + '/' + this.selectedPageConfig.id + '.png'" alt=""
                     @load="setPageConstants">
-                <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
-                    :class="'bounding-box ' + getSanitizedFieldName(field)" @click="setSelectedField(field, key)"
-                    @mousedown="startBBDrag($event, field)">
-                    <div class="bb_side right"></div>
-                    <div class="bb_side top"></div>
-                    <div class="bb_side bottom"></div>
-                    <div class="bb_side left"></div>
-                </div>
-                <div v-for="field in linkedFields" :key="`${field}isLinked}`"
-                    :class="'bounding-box ' + getSanitizedFieldName(field) + 'isLinked'"
-                    @click="setSelectedField(field)">
-                    <div class="bb_side right"></div>
-                    <div class="bb_side top"></div>
-                    <div class="bb_side bottom"></div>
-                    <div class="bb_side left"></div>
-                </div>
+                <template v-if="this.selectedPageConfig.fields">
+                    <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
+                        :class="'bounding-box ' + getSanitizedFieldName(field)" @click="setSelectedField(field, key)"
+                        @mousedown="startBBDrag($event, field)">
+                        <div class="bb_side right"></div>
+                        <div class="bb_side top"></div>
+                        <div class="bb_side bottom"></div>
+                        <div class="bb_side left"></div>
+                    </div>
+                </template>
+                <template v-if="this.selectedPageConfig.fields">
+                    <div v-for="field in linkedFields" :key="`${field}isLinked}`"
+                        :class="'bounding-box ' + getSanitizedFieldName(field) + 'isLinked'"
+                        @click="setSelectedField(field)">
+                        <div class="bb_side right"></div>
+                        <div class="bb_side top"></div>
+                        <div class="bb_side bottom"></div>
+                        <div class="bb_side left"></div>
+                    </div>
+                </template>
             </div>
         </div>
         <div class="fields-and-coords-container">
@@ -37,9 +41,9 @@
                 <div class="fieldname">
                     {{ field }}
                 </div>
-                <!-- <v-menu v-model="showOptions" absolute offset-y style="max-width: 600px">
+                <v-menu absolute offset-y style="max-width: 600px">
                     <template v-slot:activator="{ on, attrs }">
-                            <v-btn icon  v-bind="attrs" v-on="on"> 
+                        <v-btn icon v-bind="attrs" v-on="on">
                             <v-icon>
                                 mdi-dots-vertical
                             </v-icon>
@@ -51,7 +55,7 @@
                             <v-list-item-title>{{ item.title }}</v-list-item-title>
                         </v-list-item>
                     </v-list>
-                </v-menu> -->
+                </v-menu>
             </div>
 
         </div>
@@ -68,6 +72,8 @@ export default {
             imageContainerBoundingCLient: null,
             changeInWidthOfRenderedImageWRTOriginalImage: null,
             changeInHeightOfRenderedImageWRTOriginalImage: null,
+            changeInHeightOfOriginalImageWRTRenderedImage: null,
+
             relativeTopOfTheImageToBeTagged: null,
             relativeTop: null,
             relativeLeft: null,
@@ -99,8 +105,6 @@ export default {
 
     },
     mounted() {
-        // window.addEventListener('mousemove', this.handleWindowMouseMove());
-        // window.addEventListener('mouseup', this.handleMouseUp());
         window.addEventListener('resize', this.handleWindowResize);
     },
     computed: {
@@ -113,6 +117,12 @@ export default {
                 return field.trim().toLowerCase();
             }
         },
+        updateSelectedPage(page) {
+            this.selectedPageConfig = page;
+            this.$nextTick(() => {
+                this.setPageConstants();
+            })
+        },
         setPageConstants() {
             const imageContainer = document.querySelector('.editor-image-container');
             const image = document.querySelector('.image-wrapper-image');
@@ -123,8 +133,9 @@ export default {
             this.changeInWidthOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.width / (this.selectedPageConfig.width / 100), 3);
             this.changeInHeightOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.height / (this.selectedPageConfig.height / 100), 3);
 
-            this.relativeTop = this.toFixedDecimal(image.getBoundingClientRect().top + window.scrollY - this.imageContainerBoundingCLient.top + window.scrollY, 3)
+            this.relativeTop = this.toFixedDecimal(image.getBoundingClientRect().top - this.imageContainerBoundingCLient.top, 3)
             this.relativeLeft = this.toFixedDecimal(image.getBoundingClientRect().left - this.imageContainerBoundingCLient.left, 3)
+            this.changeInHeightOfOriginalImageWRTRenderedImage = this.toFixedDecimal(this.selectedPageConfig.height / ((this.imageContainerBoundingCLient.height) / 100), 3);
             this.renderBoundingBoxes();
         },
         setSelectedField(field, key) {
@@ -149,18 +160,14 @@ export default {
             }
         },
         getBBCoordsForGivenField(field) {
-            console.log(field)
-            let height = `${((field.h / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.height / 100)}%`;
-            let width = `${((field.w / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.width / 100)}%`;
-            let top = `${((field.y / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage + this.relativeTop) / (this.imageContainerBoundingCLient.height / 100)}%`;
-            let left = `${((field.x / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft) / ((this.imageContainerBoundingCLient.width) / 100)}%`;
-            // console.log("left:" + ((field.x / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft))
-            // console.log("top:" + ((field.y / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft))
-            // console.log("width:" + ((field.w / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage))
-            // console.log("height:" + ((field.h / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage))
+            let height = `${this.toFixedDecimal(((field.h / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.height / 100), 3)}%`;
+            let width = `${this.toFixedDecimal(((field.w / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage) / (this.imageContainerBoundingCLient.width / 100), 3)}%`;
+            let top = `${this.toFixedDecimal(((field.y / 100) * this.changeInHeightOfRenderedImageWRTOriginalImage + this.relativeTop) / (this.imageContainerBoundingCLient.height / 100), 3)}%`;
+            let left = `${this.toFixedDecimal(((field.x / 100) * this.changeInWidthOfRenderedImageWRTOriginalImage + this.relativeLeft) / ((this.imageContainerBoundingCLient.width) / 100), 3)}%`;
             return { height, width, top, left }
         },
         updateStyleAttriutesOfBBForGivenLinkedField(field) {
+            console.log(field)
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let linkedBB = document.querySelector(`.${sanatizedFieldName}isLinked`);
             let filedObj = this.selectedPageConfig.fields[field]
@@ -174,7 +181,6 @@ export default {
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let BB = document.querySelector(`.${sanatizedFieldName}`);
             const coords = this.getBBCoordsForGivenField(this.selectedPageConfig.fields[field])
-            console.log(field, coords)
             BB.style.height = coords.height;
             BB.style.width = coords.width;
             BB.style.top = coords.top;
@@ -202,13 +208,14 @@ export default {
                 window.removeEventListener('mousemove', dragBB);
                 window.removeEventListener('mouseup', dragBBEnd);
 
-                // this.selectedPageConfig.fields[field].y = Math.trunc(BB.getBoundingClientRect().y - this.imageContainerBoundingCLient.y)
-                // this.selectedPageConfig.fields[field].x = Math.trunc(BB.getBoundingClientRect().x - this.imageContainerBoundingCLient.x)
+                this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
 
-                // if ('question' in this.selectedPageConfig.fields[field]) {
-                //     this.updateStyleAttriutesOfBBForGivenLinkedField(field)
-                // }
-                // this.updateStyleAttriutesOfBBForGivenField(field);
+
+                if ('question' in this.selectedPageConfig.fields[field]) {
+                    this.updateStyleAttriutesOfBBForGivenLinkedField(field)
+                }
+                this.updateStyleAttriutesOfBBForGivenField(field);
             }
 
             let sanatizedFieldName = this.getSanitizedFieldName(field);
@@ -222,8 +229,12 @@ export default {
 
             let prevX = e.clientX;
             let prevY = e.clientY;
+        },
+        // updateConfig(){
+        //     let tempConfigstring = JSON.stringify(this.config)
+        //     let tempConfig = JSON.parse(tempConfigstring)
 
-        }
+        // }
 
     }
 }

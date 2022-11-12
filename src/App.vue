@@ -40,7 +40,7 @@
         </v-tooltip>
         <v-tooltip bottom>
           <template v-slot:activator="{ on, attrs }">
-            <v-btn v-bind="attrs" v-on="on" icon>
+            <v-btn v-bind="attrs" v-on="on" icon @click="getExportedFile">
               <v-icon color="black">mdi-download</v-icon>
             </v-btn>
           </template>
@@ -65,15 +65,18 @@
 </template>
 
 <script>
-import {mapActions} from "vuex";
+import {mapActions,mapGetters} from "vuex";
 export default {
   name: "App",
 
   data: () => ({
     zoom: 50,
   }),
+  computed:{
+    ...mapGetters(['config'])
+  },  
   methods: {
-    ...mapActions(['importFile']),
+    ...mapActions(['importFile','exportFile']),
     triggerFileInput() {
       this.$refs.fileInput.click();
     },
@@ -84,6 +87,9 @@ export default {
         data.append('file', file);
         this.importFile(data)
       }
+    },
+    getExportedFile(){
+      this.exportFile(this.config)
     }
   }
 };

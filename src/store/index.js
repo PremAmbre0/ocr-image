@@ -9,6 +9,8 @@ Vue.use(Vuex);
 export default new Vuex.Store({
   state: {
     config: null,
+    undoRef:[],
+
   },
   getters: {
     config: (state) => state.config,
@@ -17,16 +19,16 @@ export default new Vuex.Store({
     setConfig(state, config) {
       state.config = config;
     },
+
   },
   actions: {
-    apiCall({ context }, config) {
-      console.log(context);
+    apiCall(context, config) {
       return new Promise((resolve, reject) => {
         axios({
           ...config,
           headers: {
             Authorization:
-              "eyJraWQiOiJrTWxnSlwvYUxQSngrNkhHQ3VpWkkzY2pDR29hVmU2REhvZ1F2TmZGU21FND0iLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI2NjMxYzU5YS05NWVmLTQ3ZGUtYjgxYS0zYjc0MTMzNTYwMDAiLCJjb2duaXRvOmdyb3VwcyI6WyJ0ZXN0Z3JvdXAiLCJjb25maWd0b29sIl0sImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX05WdmZNOGdwbiIsImNsaWVudF9pZCI6IjdvNjJpZnUzbXI3Z3VsbHFrMjA5bGhtNW85Iiwib3JpZ2luX2p0aSI6ImFhMzhiNzk2LTAyMWUtNDc5MS1hMDhjLWVlOWY5MzM5ZDQyMCIsImV2ZW50X2lkIjoiNDRkNjllMTEtYjIxZS00MDNkLWJhYjYtZTAxMjk3MjlkYzdjIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTY2ODA2Njc5NiwiZXhwIjoxNjY4MDc0OTU4LCJpYXQiOjE2NjgwNzEzNTgsImp0aSI6ImNiYzFkZDhiLTRkMjEtNDE3YS05ZTUyLWI3NDM1NzVmZTAzOCIsInVzZXJuYW1lIjoidGFoZXIifQ.PRV0Rx0RChjMInCP4743rZ1mfaymI07YRs8Dcuys1VfGIJwIulcnQ9eubIwX6XssGPf-U-ZhFLOH4rNNq8_DCvgcIKz-t7z687v1y_CW-0He9oQhVbdTfLpMXUr-v4o8y6Wix7atIdVIMKTgAS5QEafwDuO3LRoF9EV7_iDVDdcPGarl73vE3BoD2yUESiYwBJgkXphCpwiKScF6B8tkRaUcR8mWXfIUm2TYwa-J3MxgxP2tmvv9d9kh0NgvKZMzWlzBmOWoe-VAdUIqmiBMMQC4A-kEfJjvyUY-rHFXbliOcoDkIp33LcklXiG1-MtHlfhwLCMlfRfwejSMUrvaJA",
+              "eyJraWQiOiJrTWxnSlwvYUxQSngrNkhHQ3VpWkkzY2pDR29hVmU2REhvZ1F2TmZGU21FND0iLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI2NjMxYzU5YS05NWVmLTQ3ZGUtYjgxYS0zYjc0MTMzNTYwMDAiLCJjb2duaXRvOmdyb3VwcyI6WyJ0ZXN0Z3JvdXAiLCJjb25maWd0b29sIl0sImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC51cy1lYXN0LTEuYW1hem9uYXdzLmNvbVwvdXMtZWFzdC0xX05WdmZNOGdwbiIsImNsaWVudF9pZCI6IjdvNjJpZnUzbXI3Z3VsbHFrMjA5bGhtNW85Iiwib3JpZ2luX2p0aSI6IjVmNWI5ZTA2LWMzNjMtNGUzMC1hMjM0LWUyZDAzZjc1ZjZjNCIsImV2ZW50X2lkIjoiMGFhZmIzOTMtYmIwMC00MTBkLThiNTEtODMwZDM1OGMxNzRjIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTY2ODI0NTM2MSwiZXhwIjoxNjY4MjQ4OTYxLCJpYXQiOjE2NjgyNDUzNjEsImp0aSI6ImUwNzI5ZDcwLWIwZTQtNGI4Yi04NTE2LTM2NjkyNzNjYWQ4OSIsInVzZXJuYW1lIjoidGFoZXIifQ.ZVKBfq4tzNfMukm1ssbayj4vDxeUK7CUuDsEVjaW5UH1xLTo3ncyUh3qTOm5bj_LayzRotTPPwgxfpoPCW63qhkxarF4bdVkZjwwK0RJqypivVKbtmdmPsChexiRky1zpbA-y4_GdCmdvmrBeomGoVjtUob24IvlAJKg5CZYjGFeLXDrMDfr9buU5KrlxdIeX2l0jZAAZfN7v7bAaSi4VkK9Lm-JLM32lhFr3it4JWRAysrDXRgZ8LYBXKDzy2p_M9FSAC6U7Z6VUP-T6bi76UUngueuRboHEEvVhZlWTYEAu08m72EOkPHbnaG1aBa40xFR2loNF2plIlbvAaWp8A",
           },
         })
           .then((response) => {
@@ -56,10 +58,11 @@ export default new Vuex.Store({
         });
     },
     exportFile({ dispatch }, data) {
+      let payload = { "config": data };
       return dispatch(
         "apiCall",
         {
-          data,
+          data: payload,
           method: "post",
           url: `${apiEndPoint}export`,
         },
@@ -67,6 +70,7 @@ export default new Vuex.Store({
       )
         .then((response) => {
           console.log(response);
+          dispatch("downloadFile", response.zipFilename);
         })
         .catch((error) => {
           console.error(error);
@@ -87,6 +91,30 @@ export default new Vuex.Store({
         .catch((error) => {
           console.error(error);
         });
+    },
+    downloadFile(context, payload) {
+      console.log(payload)
+      axios({
+        url: payload,
+        method: 'GET',
+        responseType: 'blob',
+      })
+        .then((response) => {
+          console.log(response)
+          // create file link in browser's memory
+          const href = URL.createObjectURL(response.data);
+
+          // create "a" HTLM element with href to file & click
+          const link = document.createElement('a');
+          link.href = href;
+          link.setAttribute('download', payload); //or any other extension
+          document.body.appendChild(link);
+          link.click();
+
+          // clean up "a" element & remove ObjectURL
+          document.body.removeChild(link);
+          URL.revokeObjectURL(href);
+        })
     },
   },
   modules: {},
