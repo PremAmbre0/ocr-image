@@ -56,7 +56,7 @@
         </v-tooltip> -->
       </template>
     </v-app-bar>
-    <input ref="fileInput" type="file" @input="handleInput" style="height: 0; width: 0;"/>
+    <input ref="fileInput" type="file" @input="handleInput" style="height: 0; width: 0;" />
 
     <v-main>
       <router-view />
@@ -65,18 +65,18 @@
 </template>
 
 <script>
-import {mapActions,mapGetters} from "vuex";
+import { mapActions, mapGetters } from "vuex";
 export default {
   name: "App",
 
   data: () => ({
     zoom: 50,
   }),
-  computed:{
-    ...mapGetters(['config'])
-  },  
+  computed: {
+    ...mapGetters(['config', 'undoRef'])
+  },
   methods: {
-    ...mapActions(['importFile','exportFile']),
+    ...mapActions(['importFile', 'exportFile']),
     triggerFileInput() {
       this.$refs.fileInput.click();
     },
@@ -88,9 +88,15 @@ export default {
         this.importFile(data)
       }
     },
-    getExportedFile(){
+    getExportedFile() {
       this.exportFile(this.config)
+    }, handleUndo() {
+      let tempUndoRefString = JSON.stringify(this.undoRef);
+      let tempUndoRef = JSON.parse(tempUndoRefString);
+      let pooppedConfig = tempUndoRef.pop()
+      this.setConfig(pooppedConfig);
     }
+
   }
 };
 </script>

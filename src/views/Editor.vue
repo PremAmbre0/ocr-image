@@ -17,7 +17,7 @@
                 <template v-if="this.selectedPageConfig.fields">
                     <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
                         :class="'bounding-box ' + getSanitizedFieldName(field)" @click="setSelectedField(field, key)"
-                        @mousedown="startBBDrag($event, field)">
+                        @mousedown="startBBResize($event, field),startBBDrag($event,field)">
                         <div class="bb_side right"></div>
                         <div class="bb_side top"></div>
                         <div class="bb_side bottom"></div>
@@ -117,6 +117,17 @@ export default {
                 return field.trim().toLowerCase();
             }
         },
+        updateConfig() {
+            let tempConfigString = JSON.stringify(this.config);
+            let tempConfig = JSON.parse(tempConfigString);
+
+            let indexOfselectedPage = this.config['pages'].indexOf(this.config['pages'].find(o => o.description === this.selectedPageConfig.description));
+
+            tempConfig.pages[indexOfselectedPage] = this.selectedPageConfig
+
+            this.setConfig(tempConfig);
+
+        },
         updateSelectedPage(page) {
             this.selectedPageConfig = page;
             this.$nextTick(() => {
@@ -191,7 +202,57 @@ export default {
                 this.setPageConstants()
             }, 100);
         },
+        startBBResize(e, field) {
+            let sanatizedFieldName = this.getSanitizedFieldName(field);
+            let BB = document.querySelector(`.${sanatizedFieldName}`);
+            let currentResizer;
+            const resizers = BB.childNodes;
 
+
+            let resizeBB = (e) => {
+                let prevY = e.clientY;
+                let prevX = e.clientX;
+                currentResizer = e.target
+
+                const bbBoundingClientRect = BB.getBoundingClientRect();
+                let bbTop = bbBoundingClientRect.y - this.imageContainerBoundingCLient.y
+                console.log(bbBoundingClientRect.height)
+                let bbLeft = bbBoundingClientRect.x - this.imageContainerBoundingCLient.x;
+
+
+                let startBBResize = (e) => {
+                    let newY = prevY - e.clientY;
+                    let newX = prevX - e.clientX;
+                    console.log(newY)
+                    if (currentResizer.classList.contains('top')) {
+                        BB.style.height = (bbBoundingClientRect.height + newY) + "px";
+                        BB.style.top = bbTop - newY + "px"
+                    }
+                    else if (currentResizer.classList.contains('left')) {
+                        BB.style.width = (bbBoundingClientRect.width + newX) + "px";
+                        BB.style.left = bbLeft - newX + "px"
+                    }
+                    else if (currentResizer.classList.contains('bottom')) {
+                        BB.style.height = (bbBoundingClientRect.height - newY) + "px";
+                    } else if (currentResizer.classList.contains('right')) {
+                        BB.style.width = (bbBoundingClientRect.width - newX) + "px";
+                    }
+                }
+
+                let endBBResize = () => {
+                    window.removeEventListener('mousemove', startBBResize)
+                    window.removeEventListener('mouseup', endBBResize)
+                }
+                window.addEventListener('mousemove', startBBResize)
+                window.addEventListener('mouseup', endBBResize)
+            }
+            resizers.forEach((resizer) => {
+                resizer.addEventListener("mousedown", resizeBB(e));
+            })
+
+
+
+        },
         startBBDrag(e, field) {
             e = e || window.event;
             e.preventDefault();
@@ -216,6 +277,9 @@ export default {
                     this.updateStyleAttriutesOfBBForGivenLinkedField(field)
                 }
                 this.updateStyleAttriutesOfBBForGivenField(field);
+                this.$nextTick(() => {
+                    this.updateConfig()
+                })
             }
 
             let sanatizedFieldName = this.getSanitizedFieldName(field);
@@ -230,11 +294,11 @@ export default {
             let prevX = e.clientX;
             let prevY = e.clientY;
         },
-        // updateConfig(){
-        //     let tempConfigstring = JSON.stringify(this.config)
-        //     let tempConfig = JSON.parse(tempConfigstring)
+        updateConfig(){
+            let tempConfigstring = JSON.stringify(this.config)
+            let tempConfig = JSON.parse(tempConfigstring)
 
-        // }
+        }
 
     }
 }
@@ -291,6 +355,40 @@ export default {
 
             &:active {
                 background-color: rgba($color: red, $alpha: 0.25);
+            }
+
+            .bb_side {
+                position: absolute;
+            }
+
+            .top {
+                top: -2px;
+                height: 2px;
+                width: 100%;
+                cursor: n-resize;
+            }
+
+            .right {
+                top: 0;
+                right: -2px;
+                height: 100%;
+                width: 2px;
+                cursor: e-resize;
+            }
+
+            .bottom {
+                bottom: -2px;
+                height: 2px;
+                width: 100%;
+                cursor: n-resize;
+            }
+
+            .left {
+                top: 0;
+                left: -2px;
+                height: 100%;
+                width: 2px;
+                cursor: e-resize;
             }
         }
 
