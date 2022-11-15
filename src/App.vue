@@ -24,7 +24,7 @@
         </v-card>
         <v-tooltip bottom>
           <template v-slot:activator="{ on, attrs }">
-            <v-btn v-bind="attrs" v-on="on" icon>
+            <v-btn v-bind="attrs" v-on="on" icon @click="undo">
               <v-icon color="black"> mdi-arrow-u-left-top</v-icon>
             </v-btn>
           </template>
@@ -65,7 +65,8 @@
 </template>
 
 <script>
-import { mapActions, mapGetters } from "vuex";
+import { mapActions, mapGetters, mapMutations } from "vuex";
+import { eventBus } from "@/eventBus";
 export default {
   name: "App",
 
@@ -77,6 +78,7 @@ export default {
   },
   methods: {
     ...mapActions(['importFile', 'exportFile']),
+    ...mapMutations(['setConfig']),
     triggerFileInput() {
       this.$refs.fileInput.click();
     },
@@ -90,11 +92,8 @@ export default {
     },
     getExportedFile() {
       this.exportFile(this.config)
-    }, handleUndo() {
-      let tempUndoRefString = JSON.stringify(this.undoRef);
-      let tempUndoRef = JSON.parse(tempUndoRefString);
-      let pooppedConfig = tempUndoRef.pop()
-      this.setConfig(pooppedConfig);
+    }, undo() {
+      eventBus.$emit('reloadConfig')
     }
 
   }

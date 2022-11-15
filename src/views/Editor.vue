@@ -16,8 +16,8 @@
                     @load="setPageConstants">
                 <template v-if="this.selectedPageConfig.fields">
                     <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
-                        :class="'bounding-box ' + getSanitizedFieldName(field)" @click="setSelectedField(field, key)"
-                        @mousedown="startBBResize($event, field),startBBDrag($event,field)">
+                        :class="['bounding-box ' + getSanitizedFieldName(field)]" @click="setSelectedField(field, key)"
+                        @mousedown="handleBBMouseDown($event, field)">
                         <div class="bb_side right"></div>
                         <div class="bb_side top"></div>
                         <div class="bb_side bottom"></div>
@@ -36,34 +36,42 @@
                 </template>
             </div>
         </div>
-        <div class="fields-and-coords-container">
-            <div v-for="(key, field) in selectedPageConfig.fields" :key="field" class="field-list">
-                <div class="fieldname">
-                    {{ field }}
+
+        <div class="fields-and-coords-wrapper">
+            <div class="fields-and-coords-container">
+                <div v-for="(key, field) in selectedPageConfig.fields" :key="field" class="field-list">
+                    <div class="fieldname">
+                        {{ field }}
+                    </div>
+                    <v-menu absolute offset-y style="max-width: 600px">
+                        <template v-slot:activator="{ on, attrs }">
+                            <v-btn icon v-bind="attrs" v-on="on">
+                                <v-icon>
+                                    mdi-dots-vertical
+                                </v-icon>
+                            </v-btn>
+                        </template>
+
+                        <v-list>
+                            <v-list-item v-for="(item, index) in items" :key="index">
+                                <v-list-item-title>{{ item.title }}</v-list-item-title>
+                            </v-list-item>
+                        </v-list>
+                    </v-menu>
                 </div>
-                <v-menu absolute offset-y style="max-width: 600px">
-                    <template v-slot:activator="{ on, attrs }">
-                        <v-btn icon v-bind="attrs" v-on="on">
-                            <v-icon>
-                                mdi-dots-vertical
-                            </v-icon>
-                        </v-btn>
-                    </template>
-
-                    <v-list>
-                        <v-list-item v-for="(item, index) in items" :key="index">
-                            <v-list-item-title>{{ item.title }}</v-list-item-title>
-                        </v-list-item>
-                    </v-list>
-                </v-menu>
             </div>
-
+            <!-- <div class="coords-showcase">
+                <div v-for="(value, key ) in selectedField" :key="value">
+                    {{ key }}:{{ value }}
+                </div> -->
+            <!-- </div> -->
         </div>
     </div>
 </template>
 
 <script>
 import { mapGetters, mapMutations } from 'vuex';
+import { eventBus } from "@/eventBus";
 export default {
     data() {
         return {
@@ -73,7 +81,6 @@ export default {
             changeInWidthOfRenderedImageWRTOriginalImage: null,
             changeInHeightOfRenderedImageWRTOriginalImage: null,
             changeInHeightOfOriginalImageWRTRenderedImage: null,
-
             relativeTopOfTheImageToBeTagged: null,
             relativeTop: null,
             relativeLeft: null,
@@ -82,6 +89,7 @@ export default {
             BBToBeEditied: null,
             linkedFields: [],
             moveBB: null,
+            needForRaf: null,
             showOptions: false,
             items: [
                 { title: 'Hide' },
@@ -102,13 +110,21 @@ export default {
                 this.linkedFields.push(field)
             }
         }
+        eventBus.$on('reloadConfig', () => {
+            let popppedConfig = JSON.parse(JSON.stringify(this.undoRef.pop()));
+
+            this.setConfig(popppedConfig)
+            this.selectedPageConfig = this.config.pages[0];
+
+            this.setPageConstants()
+        })
 
     },
     mounted() {
         window.addEventListener('resize', this.handleWindowResize);
     },
     computed: {
-        ...mapGetters(['config']),
+        ...mapGetters(['config', 'undoRef']),
     },
     methods: {
         ...mapMutations(['setConfig']),
@@ -126,7 +142,11 @@ export default {
             tempConfig.pages[indexOfselectedPage] = this.selectedPageConfig
 
             this.setConfig(tempConfig);
+            this.pushToUndoRef(tempConfig);
 
+        },
+        pushToUndoRef(config) {
+            this.undoRef.push(config);
         },
         updateSelectedPage(page) {
             this.selectedPageConfig = page;
@@ -162,6 +182,7 @@ export default {
             return Number(num.toFixed(decimal))
         },
         renderBoundingBoxes() {
+            console.log('bi')
             if (!this.selectedPageConfig.fields) return;
             for (const field in this.selectedPageConfig.fields) {
                 if ('question' in this.selectedPageConfig.fields[field]) {
@@ -216,32 +237,52 @@ export default {
 
                 const bbBoundingClientRect = BB.getBoundingClientRect();
                 let bbTop = bbBoundingClientRect.y - this.imageContainerBoundingCLient.y
-                console.log(bbBoundingClientRect.height)
                 let bbLeft = bbBoundingClientRect.x - this.imageContainerBoundingCLient.x;
 
 
                 let startBBResize = (e) => {
-                    let newY = prevY - e.clientY;
-                    let newX = prevX - e.clientX;
-                    console.log(newY)
-                    if (currentResizer.classList.contains('top')) {
-                        BB.style.height = (bbBoundingClientRect.height + newY) + "px";
-                        BB.style.top = bbTop - newY + "px"
-                    }
-                    else if (currentResizer.classList.contains('left')) {
-                        BB.style.width = (bbBoundingClientRect.width + newX) + "px";
-                        BB.style.left = bbLeft - newX + "px"
-                    }
-                    else if (currentResizer.classList.contains('bottom')) {
-                        BB.style.height = (bbBoundingClientRect.height - newY) + "px";
-                    } else if (currentResizer.classList.contains('right')) {
-                        BB.style.width = (bbBoundingClientRect.width - newX) + "px";
-                    }
+                    if (this.needForRaf) this.needForRaf = null;
+                    this.needForRaf = requestAnimationFrame(() => {
+                        let newY = prevY - e.clientY;
+                        let newX = prevX - e.clientX;
+
+                        if (currentResizer.classList.contains('top')) {
+                            BB.style.top = bbTop - newY + "px";
+                            BB.style.height = (bbBoundingClientRect.height + newY) + "px";
+                        }
+                        else if (currentResizer.classList.contains('left')) {
+                            BB.style.width = (bbBoundingClientRect.width + newX) + "px";
+                            BB.style.left = bbLeft - newX + "px"
+                        }
+                        else if (currentResizer.classList.contains('bottom')) {
+                            BB.style.height = (bbBoundingClientRect.height - newY) + "px";
+                        } else if (currentResizer.classList.contains('right')) {
+                            BB.style.width = (bbBoundingClientRect.width - newX) + "px";
+                        }
+                    })
+
                 }
 
-                let endBBResize = () => {
+                let endBBResize = (e) => {
                     window.removeEventListener('mousemove', startBBResize)
                     window.removeEventListener('mouseup', endBBResize)
+
+                    if (e.target.classList.contains('top')) {
+                        this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                        this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+
+                    }
+                    else if (e.target.classList.contains('left')) {
+                        this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                    }
+                    else if (e.target.classList.contains('bottom')) {
+                        this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+
+                    } else if (e.target.classList.contains('right')) {
+                        this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                    }
+
                 }
                 window.addEventListener('mousemove', startBBResize)
                 window.addEventListener('mouseup', endBBResize)
@@ -250,20 +291,26 @@ export default {
                 resizer.addEventListener("mousedown", resizeBB(e));
             })
 
-
-
         },
+        handleBBMouseDown(e, field) {
+            console.log(e.target)
+            if (e.target.classList.contains('bb_side')) this.startBBResize(e, field);
+            if (e.target.classList.contains('bounding-box')) this.startBBDrag(e, field)
+        },
+
         startBBDrag(e, field) {
             e = e || window.event;
             e.preventDefault();
 
             const dragBB = (e) => {
-                let newX = prevX - e.clientX;
-                let newY = prevY - e.clientY;
+                if (this.needForRaf) this.needForRaf = null;
+                this.needForRaf = requestAnimationFrame(() => {
+                    let newX = prevX - e.clientX;
+                    let newY = prevY - e.clientY;
 
-                BB.style.top = bbTop - newY + "px";
-                BB.style.left = bbLeft - newX + "px";
-
+                    BB.style.top = bbTop - newY + "px";
+                    BB.style.left = bbLeft - newX + "px";
+                })
             }
             const dragBBEnd = () => {
                 window.removeEventListener('mousemove', dragBB);
@@ -294,12 +341,6 @@ export default {
             let prevX = e.clientX;
             let prevY = e.clientY;
         },
-        updateConfig(){
-            let tempConfigstring = JSON.stringify(this.config)
-            let tempConfig = JSON.parse(tempConfigstring)
-
-        }
-
     }
 }
 </script>
@@ -400,10 +441,29 @@ export default {
         }
     }
 
-    .fields-and-coords-container {
+    .fields-and-coords-wrapper {
         height: 100vh;
         width: 20vw;
         position: relative;
+    }
+
+    .fields-and-coords-container {
+        height: 60vh;
+        width: 20vw;
+        position: absolute;
+        top: 0;
+        right: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+
+    }
+
+    .coords-showcase {
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 20vw;
+        height: 40vh;
         overflow-y: auto;
         overflow-x: hidden;
     }
