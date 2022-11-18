@@ -11,9 +11,10 @@
         </div>
         <div class="editor-image-container">
             <div v-if="selectedPageConfig" class="image-wrapper">
+                <div class="newbb"></div>
                 <img class="image-wrapper-image"
                     :src="'http://34.100.140.210/files/' + config.id + '/' + this.selectedPageConfig.id + '.png'" alt=""
-                    @load="setPageConstants">
+                    @load="setPageConstants" @mousedown="startNewBBDraw($event)" draggable="false">
                 <template v-if="this.selectedPageConfig.fields">
                     <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
                         :class="['bounding-box ' + getSanitizedFieldName(field)]" @click="setSelectedField(field, key)"
@@ -60,11 +61,11 @@
                     </v-menu>
                 </div>
             </div>
-            <!-- <div class="coords-showcase">
+            <div class="coords-showcase">
                 <div v-for="(value, key ) in selectedField" :key="value">
                     {{ key }}:{{ value }}
-                </div> -->
-            <!-- </div> -->
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -72,6 +73,7 @@
 <script>
 import { mapGetters, mapMutations } from 'vuex';
 import { eventBus } from "@/eventBus";
+import { v4 as uuidv4 } from 'uuid';
 export default {
     data() {
         return {
@@ -100,8 +102,8 @@ export default {
         }
     },
     created() {
-        if (sessionStorage.getItem('config')) {
-            this.setConfig(JSON.parse(sessionStorage.getItem('config')));
+        if (localStorage.getItem('config')) {
+            this.setConfig(JSON.parse(localStorage.getItem('config')));
         }
         this.selectedPageConfig = this.config.pages[0];
         const fields = new Object(this.config.pages[0].fields);
@@ -110,6 +112,7 @@ export default {
                 this.linkedFields.push(field)
             }
         }
+        console.log(this.config)
         eventBus.$on('reloadConfig', () => {
             let popppedConfig = JSON.parse(JSON.stringify(this.undoRef.pop()));
 
@@ -164,7 +167,7 @@ export default {
             this.changeInWidthOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.width / (this.selectedPageConfig.width / 100), 3);
             this.changeInHeightOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.height / (this.selectedPageConfig.height / 100), 3);
 
-            this.relativeTop = this.toFixedDecimal(image.getBoundingClientRect().top - this.imageContainerBoundingCLient.top, 3)
+            this.relativeTop = this.toFixedDecimal(image.getBoundingClientRect().top - this.imageContainerBoundingCLient.top, 3) + imageContainer.scrollTop;
             this.relativeLeft = this.toFixedDecimal(image.getBoundingClientRect().left - this.imageContainerBoundingCLient.left, 3)
             this.changeInHeightOfOriginalImageWRTRenderedImage = this.toFixedDecimal(this.selectedPageConfig.height / ((this.imageContainerBoundingCLient.height) / 100), 3);
             this.renderBoundingBoxes();
@@ -182,7 +185,6 @@ export default {
             return Number(num.toFixed(decimal))
         },
         renderBoundingBoxes() {
-            console.log('bi')
             if (!this.selectedPageConfig.fields) return;
             for (const field in this.selectedPageConfig.fields) {
                 if ('question' in this.selectedPageConfig.fields[field]) {
@@ -199,7 +201,6 @@ export default {
             return { height, width, top, left }
         },
         updateStyleAttriutesOfBBForGivenLinkedField(field) {
-            console.log(field)
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let linkedBB = document.querySelector(`.${sanatizedFieldName}isLinked`);
             let filedObj = this.selectedPageConfig.fields[field]
@@ -236,7 +237,9 @@ export default {
                 currentResizer = e.target
 
                 const bbBoundingClientRect = BB.getBoundingClientRect();
-                let bbTop = bbBoundingClientRect.y - this.imageContainerBoundingCLient.y
+                const imageContainer = document.querySelector('.editor-image-container');
+
+                let bbTop = (bbBoundingClientRect.y - this.imageContainerBoundingCLient.y) + imageContainer.scrollTop;
                 let bbLeft = bbBoundingClientRect.x - this.imageContainerBoundingCLient.x;
 
 
@@ -293,7 +296,6 @@ export default {
 
         },
         handleBBMouseDown(e, field) {
-            console.log(e.target)
             if (e.target.classList.contains('bb_side')) this.startBBResize(e, field);
             if (e.target.classList.contains('bounding-box')) this.startBBDrag(e, field)
         },
@@ -307,7 +309,6 @@ export default {
                 this.needForRaf = requestAnimationFrame(() => {
                     let newX = prevX - e.clientX;
                     let newY = prevY - e.clientY;
-
                     BB.style.top = bbTop - newY + "px";
                     BB.style.left = bbLeft - newX + "px";
                 })
@@ -335,12 +336,49 @@ export default {
             window.addEventListener('mousemove', dragBB);
             window.addEventListener('mouseup', dragBBEnd);
 
-            let bbTop = BB.getBoundingClientRect().y - this.imageContainerBoundingCLient.y
+            const imageContainer = document.querySelector('.editor-image-container');
+            let bbTop = (BB.getBoundingClientRect().y - this.imageContainerBoundingCLient.y) + imageContainer.scrollTop;
             let bbLeft = BB.getBoundingClientRect().x - this.imageContainerBoundingCLient.x;
 
             let prevX = e.clientX;
             let prevY = e.clientY;
         },
+        startNewBBDraw(e) {
+            e.preventDefault();
+            let newBBDraw = (e) => {
+                // const imageContainer = document.querySelector('.editor-image-container');
+
+                let newY = (e.clientY - prevY);
+                let newX = e.clientX - prevX;
+                newBB.style.height = newY + "px";
+                newBB.style.width = newX + "px";
+            }
+            let endNewBBDraw = () => {
+                window.removeEventListener('mousemove', newBBDraw);
+                window.removeEventListener('mouseup', endNewBBDraw);
+                const newField = "new_field_" + uuidv4();
+                const newBornBBCoords = {
+                    y: ((parseInt(newBB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
+                    x: ((parseInt(newBB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
+                    h: (parseInt(newBB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
+                    w: (parseInt(newBB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
+                }
+
+                // this.selectedPageConfig.fields[newField] = newBornBBCoords;
+                this.$set(this.selectedPageConfig.fields, newField, newBornBBCoords)
+                this.$nextTick(() => {
+                    this.setPageConstants();
+                })
+            }
+            let newBB = document.querySelector('.newbb');
+            newBB.style.top = (e.offsetY + this.relativeTop) + "px";
+            newBB.style.left = (e.offsetX + this.relativeLeft) + "px";
+            let prevY = e.clientY;
+            let prevX = e.clientX;
+
+            window.addEventListener('mousemove', newBBDraw);
+            window.addEventListener('mouseup', endNewBBDraw);
+        }
     }
 }
 </script>
@@ -436,7 +474,6 @@ export default {
         .image-wrapper img {
             width: 100%;
             object-fit: contain;
-            // opacity: 0;
 
         }
     }
@@ -475,6 +512,12 @@ export default {
         justify-content: space-between;
         padding: 2%;
         border: solid 1px black;
+    }
+
+    .newbb {
+        position: absolute;
+        background-color: bisque;
+        background-color: rgba($color: red, $alpha: 0.25);
     }
 }
 </style>

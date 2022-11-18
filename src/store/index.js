@@ -56,7 +56,7 @@ export default new Vuex.Store({
       )
         .then((response) => {
           commit("setConfig", response.config);
-          sessionStorage.setItem("config", JSON.stringify(response.config));
+          localStorage.setItem("config", JSON.stringify(response.config));
         })
         .catch((error) => {
           console.error(error);
