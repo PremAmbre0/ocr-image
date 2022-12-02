@@ -93,7 +93,7 @@ export default {
     getExportedFile() {
       this.exportFile(this.config)
     }, undo() {
-      eventBus.$emit('reloadConfig')
+      eventBus.$emit('undoConfig')
     }
 
   }

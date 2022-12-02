@@ -2,8 +2,8 @@
     <div class="editor" v-if="config">
         <div class="image-list-container">
             <div class="pages" v-for="page in config.pages" :key="page.id" @click="updateSelectedPage(page)">
-                <img class="pages-img" :src="'http://34.100.140.210/files/' + config.id + '/' + page.id + '.png'"
-                    alt="">
+                <img class="pages-img" :src="'http://34.93.226.10/files/' + config.id + '/' + page.id + '.png'"
+                    alt="" />
                 <div class="pages-description">
                     {{ page.description }}
                 </div>
@@ -13,12 +13,12 @@
             <div v-if="selectedPageConfig" class="image-wrapper">
                 <div class="newbb"></div>
                 <img class="image-wrapper-image"
-                    :src="'http://34.100.140.210/files/' + config.id + '/' + this.selectedPageConfig.id + '.png'" alt=""
+                    :src="'http://34.93.226.10/files/' + config.id + '/' + this.selectedPageConfig.id + '.png'" alt=""
                     @load="setPageConstants" @mousedown="startNewBBDraw($event)" draggable="false">
                 <template v-if="this.selectedPageConfig.fields">
                     <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
-                        :class="['bounding-box ' + getSanitizedFieldName(field)]" @click="setSelectedField(field, key)"
-                        @mousedown="handleBBMouseDown($event, field)">
+                        :class="['bounding-box ' + getSanitizedFieldName(field), { 'active': selectedField && selectedField === field }, { 'hidden': fieldsToHide.includes(field) }]"
+                        @click="setSelectedField(field)" @mousedown="handleBBMouseDown($event, field)">
                         <div class="bb_side right"></div>
                         <div class="bb_side top"></div>
                         <div class="bb_side bottom"></div>
@@ -27,7 +27,7 @@
                 </template>
                 <template v-if="this.selectedPageConfig.fields">
                     <div v-for="field in linkedFields" :key="`${field}isLinked}`"
-                        :class="'bounding-box ' + getSanitizedFieldName(field) + 'isLinked'"
+                        :class="['bounding-box ' + getSanitizedFieldName(field) + 'isLinked', { 'question-active': selectedField && selectedField === field }, { 'hidden': fieldsToHide.includes(field) }]"
                         @click="setSelectedField(field)">
                         <div class="bb_side right"></div>
                         <div class="bb_side top"></div>
@@ -40,7 +40,9 @@
 
         <div class="fields-and-coords-wrapper">
             <div class="fields-and-coords-container">
-                <div v-for="(key, field) in selectedPageConfig.fields" :key="field" class="field-list">
+                <div v-for="(key, field) in     selectedPageConfig.fields" :key="field" class="field-list"
+                    :class="{ 'active': selectedField && selectedField === field }"
+                    @click="setSelectedField(field), bringBBIntoView(field)">
                     <div class="fieldname">
                         {{ field }}
                     </div>
@@ -53,17 +55,28 @@
                             </v-btn>
                         </template>
 
-                        <v-list>
-                            <v-list-item v-for="(item, index) in items" :key="index">
-                                <v-list-item-title>{{ item.title }}</v-list-item-title>
-                            </v-list-item>
+                        <v-list class="options">
+                            <v-btn v-if="fieldsToHide.includes(field)" plain depressed tile @click="showField(field)">
+                                Show</v-btn>
+                            <v-btn v-else plain depressed tile @click="hideField(field)">Hide</v-btn>
+                            <v-btn plain depressed tile>Edit</v-btn>
+                            <v-btn plain depressed tile @click="deleteField(field)">Delete</v-btn>
+                            <v-btn plain depressed tile>Link Field</v-btn>
                         </v-list>
                     </v-menu>
                 </div>
             </div>
             <div class="coords-showcase">
-                <div v-for="(value, key ) in selectedField" :key="value">
-                    {{ key }}:{{ value }}
+                <div id="coords" v-if="selectedField">
+                    <div class="coords_name">{{ selectedField }}</div>
+                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['x']" label="x" type="number"
+                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
+                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['y']" label="y" type="number"
+                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
+                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['h']" label="h" type="number"
+                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
+                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['w']" label="w" type="number"
+                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
                 </div>
             </div>
         </div>
@@ -72,7 +85,7 @@
 
 <script>
 import { mapGetters, mapMutations } from 'vuex';
-import { eventBus } from "@/eventBus";
+// import { eventBus } from "@/eventBus";
 import { v4 as uuidv4 } from 'uuid';
 export default {
     data() {
@@ -87,14 +100,15 @@ export default {
             relativeTop: null,
             relativeLeft: null,
             scrollBarWidth: null,
-            selectedField: null,
+            selectedField: '',
             BBToBeEditied: null,
             linkedFields: [],
             moveBB: null,
             needForRaf: null,
             showOptions: false,
+            hasBBChanged: false,
+            fieldsToHide: [],
             items: [
-                { title: 'Hide' },
                 { title: 'Edit' },
                 { title: 'Delete' },
                 { title: 'Link Field' }
@@ -113,28 +127,37 @@ export default {
             }
         }
         console.log(this.config)
-        eventBus.$on('reloadConfig', () => {
-            let popppedConfig = JSON.parse(JSON.stringify(this.undoRef.pop()));
-
-            this.setConfig(popppedConfig)
-            this.selectedPageConfig = this.config.pages[0];
-
-            this.setPageConstants()
-        })
-
     },
     mounted() {
         window.addEventListener('resize', this.handleWindowResize);
     },
+    watch: {
+        selectedField(n, o) {
+            if (n != o) {
+                console.log(n)
+            }
+
+        }
+    },
     computed: {
-        ...mapGetters(['config', 'undoRef']),
+        ...mapGetters(['config']),
     },
     methods: {
         ...mapMutations(['setConfig']),
+        switchToInput(e) {
+            e.target.nextSibling.focus;
+            console.log(e.target.nextSibling.focus)
+        },
         getSanitizedFieldName(field) {
             if (field) {
                 return field.trim().toLowerCase();
             }
+        },
+        hideField(field) {
+            this.fieldsToHide.push(field);
+        },
+        showField(field) {
+            this.fieldsToHide = this.fieldsToHide.filter(e => e !== field)
         },
         updateConfig() {
             let tempConfigString = JSON.stringify(this.config);
@@ -145,16 +168,25 @@ export default {
             tempConfig.pages[indexOfselectedPage] = this.selectedPageConfig
 
             this.setConfig(tempConfig);
-            this.pushToUndoRef(tempConfig);
 
-        },
-        pushToUndoRef(config) {
-            this.undoRef.push(config);
         },
         updateSelectedPage(page) {
             this.selectedPageConfig = page;
             this.$nextTick(() => {
                 this.setPageConstants();
+            })
+        },
+        deleteField(field) {
+            if (this.selectedField == field) {
+                console.log(this.selectedField = null)
+            }
+            if ('question' in this.selectedPageConfig.fields[field]) {
+                this.linkedFields = this.linkedFields.filter(e => e !== field)
+            }
+            this.$delete(this.selectedPageConfig.fields, field);
+            this.$nextTick(() => {
+                this.setPageConstants();
+                console.log(this.linkedFields)
             })
         },
         setPageConstants() {
@@ -172,13 +204,15 @@ export default {
             this.changeInHeightOfOriginalImageWRTRenderedImage = this.toFixedDecimal(this.selectedPageConfig.height / ((this.imageContainerBoundingCLient.height) / 100), 3);
             this.renderBoundingBoxes();
         },
-        setSelectedField(field, key) {
+        setSelectedField(field) {
             if (field) {
-                this.selectedField = { name: field, ...key }
+                this.selectedField = field;
             }
-            else {
-                this.selectedField = { name: field, ...this.selectedPageConfig.fields[field] }
-            }
+        },
+        bringBBIntoView(field) {
+            let sanatizedFieldName = this.getSanitizedFieldName(field);
+            let BB = document.querySelector(`.${sanatizedFieldName}`);
+            BB.scrollIntoView();
         },
         toFixedDecimal(num, decimal) {
             if (typeof (num) != "number") return
@@ -214,10 +248,12 @@ export default {
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let BB = document.querySelector(`.${sanatizedFieldName}`);
             const coords = this.getBBCoordsForGivenField(this.selectedPageConfig.fields[field])
-            BB.style.height = coords.height;
-            BB.style.width = coords.width;
-            BB.style.top = coords.top;
-            BB.style.left = coords.left;
+            this.$nextTick(() => {
+                BB.style.height = coords.height;
+                BB.style.width = coords.width;
+                BB.style.top = coords.top;
+                BB.style.left = coords.left;
+            })
         },
         handleWindowResize() {
             setTimeout(() => {
@@ -285,6 +321,9 @@ export default {
                     } else if (e.target.classList.contains('right')) {
                         this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
                     }
+                    this.$nextTick(() => {
+                        this.updateConfig()
+                    })
 
                 }
                 window.addEventListener('mousemove', startBBResize)
@@ -311,23 +350,27 @@ export default {
                     let newY = prevY - e.clientY;
                     BB.style.top = bbTop - newY + "px";
                     BB.style.left = bbLeft - newX + "px";
+                    if (newX > 0 || newY > 0) this.hasBBChanged = true;
                 })
             }
             const dragBBEnd = () => {
                 window.removeEventListener('mousemove', dragBB);
                 window.removeEventListener('mouseup', dragBBEnd);
 
-                this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
-                this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                if (this.hasBBChanged) {
+                    this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                    this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
 
 
-                if ('question' in this.selectedPageConfig.fields[field]) {
-                    this.updateStyleAttriutesOfBBForGivenLinkedField(field)
+                    if ('question' in this.selectedPageConfig.fields[field]) {
+                        this.updateStyleAttriutesOfBBForGivenLinkedField(field)
+                    }
+                    this.updateStyleAttriutesOfBBForGivenField(field);
+                    this.$nextTick(() => {
+                        this.updateConfig()
+                    })
+                    this.hasBBChanged = false;
                 }
-                this.updateStyleAttriutesOfBBForGivenField(field);
-                this.$nextTick(() => {
-                    this.updateConfig()
-                })
             }
 
             let sanatizedFieldName = this.getSanitizedFieldName(field);
@@ -352,23 +395,32 @@ export default {
                 let newX = e.clientX - prevX;
                 newBB.style.height = newY + "px";
                 newBB.style.width = newX + "px";
+                if (newX > 0 || newY > 0) this.hasBBChanged = true;
             }
             let endNewBBDraw = () => {
                 window.removeEventListener('mousemove', newBBDraw);
                 window.removeEventListener('mouseup', endNewBBDraw);
-                const newField = "new_field_" + uuidv4();
-                const newBornBBCoords = {
-                    y: ((parseInt(newBB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
-                    x: ((parseInt(newBB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
-                    h: (parseInt(newBB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
-                    w: (parseInt(newBB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
-                }
+                if (this.hasBBChanged) {
+                    const newField = "new_field_" + uuidv4();
+                    const newBornBBCoords = {
+                        y: ((parseInt(newBB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
+                        x: ((parseInt(newBB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
+                        h: (parseInt(newBB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
+                        w: (parseInt(newBB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
+                    }
 
-                // this.selectedPageConfig.fields[newField] = newBornBBCoords;
-                this.$set(this.selectedPageConfig.fields, newField, newBornBBCoords)
-                this.$nextTick(() => {
-                    this.setPageConstants();
-                })
+
+                    this.$set(this.selectedPageConfig.fields, newField, newBornBBCoords)
+                    this.$nextTick(() => {
+                        this.setPageConstants();
+                        this.updateConfig()
+                    })
+                    newBB.style.top = "-100vh";
+                    newBB.style.left = "-100vW";
+                    newBB.style.height = "0px";
+                    newBB.style.width = "0px"
+                    this.hasBBChanged = false;
+                }
             }
             let newBB = document.querySelector('.newbb');
             newBB.style.top = (e.offsetY + this.relativeTop) + "px";
@@ -385,10 +437,36 @@ export default {
 
 
 <style lang="scss" scoped>
+.active {
+    background-color: rgba($color: red, $alpha: 0.25);
+}
+
+.question-active {
+    background-color: rgba($color: pink, $alpha: 0.65);
+}
+
+.hidden {
+    opacity: 0;
+}
+
+.options {
+    padding: 10% 0;
+    height: 30%;
+    width: 10vw;
+
+    .v-btn {
+        width: 100%;
+        padding: 5% 15%;
+        height: 100%;
+        text-transform: unset !important;
+    }
+}
+
 .editor {
     display: flex;
     height: 100vh;
     width: 100vw;
+    overflow-y: hidden;
 
     .image-list-container {
         width: 15vw;
@@ -418,6 +496,7 @@ export default {
         }
     }
 
+
     .editor-image-container {
         background-color: #d3d3d3;
         height: 100vh;
@@ -426,15 +505,13 @@ export default {
         overflow-y: auto;
         overflow-x: hidden;
         position: relative;
+        scroll-behavior: smooth;
+
 
         .bounding-box {
             border: 2px solid red;
             position: absolute;
             cursor: move;
-
-            &:active {
-                background-color: rgba($color: red, $alpha: 0.25);
-            }
 
             .bb_side {
                 position: absolute;
@@ -474,6 +551,11 @@ export default {
         .image-wrapper img {
             width: 100%;
             object-fit: contain;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -o-user-select: none;
+            user-select: none;
 
         }
     }
@@ -501,8 +583,10 @@ export default {
         right: 0;
         width: 20vw;
         height: 40vh;
+        padding: 10%;
         overflow-y: auto;
         overflow-x: hidden;
+        border-top: 2px solid black;
     }
 
     .field-list {
@@ -512,6 +596,11 @@ export default {
         justify-content: space-between;
         padding: 2%;
         border: solid 1px black;
+        cursor: pointer;
+
+        &:active {
+            background-color: rgba($color: red, $alpha: 0.25);
+        }
     }
 
     .newbb {
