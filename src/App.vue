@@ -8,7 +8,7 @@
       <template>
         <v-card flat color="transparent" width="20%">
           <v-card-text class="pa-0">
-            <v-slider v-model="zoom" dense thumb-label="always" thumb-size="20" min="0" max="100" step="1" hide-details>
+            <v-slider v-model="zoom" dense thumb-label="always" thumb-size="20" min="0" max="200" step="1" hide-details>
               <template v-slot:prepend>
                 <v-icon color="black">
                   mdi-magnify-minus-outline
@@ -71,10 +71,17 @@ export default {
   name: "App",
 
   data: () => ({
-    zoom: 50,
+    zoom: 100,
   }),
   computed: {
     ...mapGetters(['config', 'undoRef'])
+  },
+  watch:{
+    zoom(newVal,oldVal){
+      if(newVal != oldVal){
+        eventBus.$emit('handleZoom',newVal)
+      }
+    }
   },
   methods: {
     ...mapActions(['importFile', 'exportFile']),

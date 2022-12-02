@@ -13,6 +13,7 @@
             <div v-if="selectedPageConfig" class="image-wrapper">
                 <div class="newbb"></div>
                 <img class="image-wrapper-image"
+                    :style="{ height: this.imageToBeTaggedHeight + 'px', width: this.imageToBeTaggedWidth + 'px' }"
                     :src="'http://34.93.226.10/files/' + config.id + '/' + this.selectedPageConfig.id + '.png'" alt=""
                     @load="setPageConstants" @mousedown="startNewBBDraw($event)" draggable="false">
                 <template v-if="this.selectedPageConfig.fields">
@@ -85,12 +86,14 @@
 
 <script>
 import { mapGetters, mapMutations } from 'vuex';
-// import { eventBus } from "@/eventBus";
+import { eventBus } from "@/eventBus";
 import { v4 as uuidv4 } from 'uuid';
 export default {
     data() {
         return {
             selectedPageConfig: null,
+            imageToBeTaggedHeight: null,
+            imageToBeTaggedWidth: null,
             imageToBeTaggedBoundingCLient: null,
             imageContainerBoundingCLient: null,
             changeInWidthOfRenderedImageWRTOriginalImage: null,
@@ -108,6 +111,8 @@ export default {
             showOptions: false,
             hasBBChanged: false,
             fieldsToHide: [],
+            initialImageContainerHeight: null,
+            initialImageContainerWidth: null,
             items: [
                 { title: 'Edit' },
                 { title: 'Delete' },
@@ -126,18 +131,25 @@ export default {
                 this.linkedFields.push(field)
             }
         }
+        eventBus.$on('handleZoom', (data) => {
+            let onePrecentWidth = this.toFixedDecimal(this.initialImageContainerWidth/ 100, 3)
+            let onePrecentHeight = this.toFixedDecimal(this.initialImageContainerHeight / 100, 3)
+
+            this.imageToBeTaggedWidth = this.toFixedDecimal(onePrecentWidth * data, 3);
+            this.imageToBeTaggedHeight = this.toFixedDecimal(onePrecentHeight * data, 3)
+
+            this.$nextTick(() => {
+                this.setPageConstants();
+            })
+        })
         console.log(this.config)
     },
     mounted() {
         window.addEventListener('resize', this.handleWindowResize);
-    },
-    watch: {
-        selectedField(n, o) {
-            if (n != o) {
-                console.log(n)
-            }
-
-        }
+        const imageContainer = document.querySelector('.editor-image-container');
+        this.initialImageContainerHeight = imageContainer.getBoundingClientRect().height ;
+        this.initialImageContainerWidth = imageContainer.getBoundingClientRect().width ;
+        this.setDimensionsOfImage()
     },
     computed: {
         ...mapGetters(['config']),
@@ -147,6 +159,14 @@ export default {
         switchToInput(e) {
             e.target.nextSibling.focus;
             console.log(e.target.nextSibling.focus)
+        },
+        setDimensionsOfImage() {
+        const imageContainer = document.querySelector('.editor-image-container');
+            let widthRatio =  imageContainer.getBoundingClientRect().width / this.selectedPageConfig.width;
+            let HeightRatio =  imageContainer.getBoundingClientRect().height / this.selectedPageConfig.height;
+            let ratio = widthRatio < HeightRatio ? widthRatio : HeightRatio;
+            this.imageToBeTaggedHeight = Math.round(this.selectedPageConfig.height * ratio);
+            this.imageToBeTaggedWidth = Math.round(this.selectedPageConfig.width * ratio);
         },
         getSanitizedFieldName(field) {
             if (field) {
@@ -548,16 +568,21 @@ export default {
             }
         }
 
-        .image-wrapper img {
-            width: 100%;
-            object-fit: contain;
-            -webkit-user-select: none;
-            -khtml-user-select: none;
-            -moz-user-select: none;
-            -o-user-select: none;
-            user-select: none;
+        .image-wrapper {
+            display: flex;
+            justify-content: center;
 
+            img {
+                -webkit-user-select: none;
+                -khtml-user-select: none;
+                -moz-user-select: none;
+                -o-user-select: none;
+                user-select: none;
+
+            }
         }
+
+
     }
 
     .fields-and-coords-wrapper {
