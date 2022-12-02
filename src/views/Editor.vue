@@ -19,7 +19,7 @@
                 <template v-if="this.selectedPageConfig.fields">
                     <div v-for="(key, field) in selectedPageConfig.fields" :key="field"
                         :class="['bounding-box ' + getSanitizedFieldName(field), { 'active': selectedField && selectedField === field }, { 'hidden': fieldsToHide.includes(field) }]"
-                        @click="setSelectedField(field)" @mousedown="handleBBMouseDown($event, field)">
+                        @click="setSelectedField(field)" @mousedown="handleBBMouseDown($event, field, false)">
                         <div class="bb_side right"></div>
                         <div class="bb_side top"></div>
                         <div class="bb_side bottom"></div>
@@ -29,7 +29,7 @@
                 <template v-if="this.selectedPageConfig.fields">
                     <div v-for="field in linkedFields" :key="`${field}isLinked}`"
                         :class="['bounding-box ' + getSanitizedFieldName(field) + 'isLinked', { 'question-active': selectedField && selectedField === field }, { 'hidden': fieldsToHide.includes(field) }]"
-                        @click="setSelectedField(field)">
+                        @click="setSelectedField(field)" @mousedown="handleBBMouseDown($event, field, true)">
                         <div class="bb_side right"></div>
                         <div class="bb_side top"></div>
                         <div class="bb_side bottom"></div>
@@ -132,7 +132,7 @@ export default {
             }
         }
         eventBus.$on('handleZoom', (data) => {
-            let onePrecentWidth = this.toFixedDecimal(this.initialImageContainerWidth/ 100, 3)
+            let onePrecentWidth = this.toFixedDecimal(this.initialImageContainerWidth / 100, 3)
             let onePrecentHeight = this.toFixedDecimal(this.initialImageContainerHeight / 100, 3)
 
             this.imageToBeTaggedWidth = this.toFixedDecimal(onePrecentWidth * data, 3);
@@ -147,8 +147,8 @@ export default {
     mounted() {
         window.addEventListener('resize', this.handleWindowResize);
         const imageContainer = document.querySelector('.editor-image-container');
-        this.initialImageContainerHeight = imageContainer.getBoundingClientRect().height ;
-        this.initialImageContainerWidth = imageContainer.getBoundingClientRect().width ;
+        this.initialImageContainerHeight = imageContainer.getBoundingClientRect().height;
+        this.initialImageContainerWidth = imageContainer.getBoundingClientRect().width;
         this.setDimensionsOfImage()
     },
     computed: {
@@ -161,9 +161,9 @@ export default {
             console.log(e.target.nextSibling.focus)
         },
         setDimensionsOfImage() {
-        const imageContainer = document.querySelector('.editor-image-container');
-            let widthRatio =  imageContainer.getBoundingClientRect().width / this.selectedPageConfig.width;
-            let HeightRatio =  imageContainer.getBoundingClientRect().height / this.selectedPageConfig.height;
+            const imageContainer = document.querySelector('.editor-image-container');
+            let widthRatio = imageContainer.getBoundingClientRect().width / this.selectedPageConfig.width;
+            let HeightRatio = imageContainer.getBoundingClientRect().height / this.selectedPageConfig.height;
             let ratio = widthRatio < HeightRatio ? widthRatio : HeightRatio;
             this.imageToBeTaggedHeight = Math.round(this.selectedPageConfig.height * ratio);
             this.imageToBeTaggedWidth = Math.round(this.selectedPageConfig.width * ratio);
@@ -280,9 +280,18 @@ export default {
                 this.setPageConstants()
             }, 100);
         },
-        startBBResize(e, field) {
+        startBBResize(e, field, isLinked) {
+            console.log(isLinked)
+
             let sanatizedFieldName = this.getSanitizedFieldName(field);
-            let BB = document.querySelector(`.${sanatizedFieldName}`);
+            let BB;
+            if (isLinked) {
+                BB = document.querySelector(`.${sanatizedFieldName}isLinked`);
+            }
+            else {
+
+                BB = document.querySelector(`.${sanatizedFieldName}`);
+            }
             let currentResizer;
             const resizers = BB.childNodes;
 
@@ -326,21 +335,42 @@ export default {
                     window.removeEventListener('mousemove', startBBResize)
                     window.removeEventListener('mouseup', endBBResize)
 
-                    if (e.target.classList.contains('top')) {
-                        this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
-                        this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                    if (isLinked) {
+                        if (e.target.classList.contains('top')) {
+                            this.selectedPageConfig.fields[field]['question'].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                            this.selectedPageConfig.fields[field]['question'].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
 
-                    }
-                    else if (e.target.classList.contains('left')) {
-                        this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
-                        this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
-                    }
-                    else if (e.target.classList.contains('bottom')) {
-                        this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                        }
+                        else if (e.target.classList.contains('left')) {
+                            this.selectedPageConfig.fields[field]['question'].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                            this.selectedPageConfig.fields[field]['question'].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        }
+                        else if (e.target.classList.contains('bottom')) {
+                            this.selectedPageConfig.fields[field]['question'].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
 
-                    } else if (e.target.classList.contains('right')) {
-                        this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        } else if (e.target.classList.contains('right')) {
+                            this.selectedPageConfig.fields[field]['question'].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        }
                     }
+                    else {
+
+                        if (e.target.classList.contains('top')) {
+                            this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                            this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+
+                        }
+                        else if (e.target.classList.contains('left')) {
+                            this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                            this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        }
+                        else if (e.target.classList.contains('bottom')) {
+                            this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+
+                        } else if (e.target.classList.contains('right')) {
+                            this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        }
+                    }
+
                     this.$nextTick(() => {
                         this.updateConfig()
                     })
@@ -354,12 +384,13 @@ export default {
             })
 
         },
-        handleBBMouseDown(e, field) {
-            if (e.target.classList.contains('bb_side')) this.startBBResize(e, field);
-            if (e.target.classList.contains('bounding-box')) this.startBBDrag(e, field)
+        handleBBMouseDown(e, field, isLinked) {
+            if (e.target.classList.contains('bb_side')) this.startBBResize(e, field, isLinked);
+            if (e.target.classList.contains('bounding-box')) this.startBBDrag(e, field, isLinked)
         },
 
-        startBBDrag(e, field) {
+        startBBDrag(e, field, isLinked) {
+            console.log(isLinked)
             e = e || window.event;
             e.preventDefault();
 
@@ -378,8 +409,13 @@ export default {
                 window.removeEventListener('mouseup', dragBBEnd);
 
                 if (this.hasBBChanged) {
-                    this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
-                    this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                    if (isLinked) {
+                        this.selectedPageConfig.fields[field]['question'].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                        this.selectedPageConfig.fields[field]['question'].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                    } else {
+                        this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                        this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                    }
 
 
                     if ('question' in this.selectedPageConfig.fields[field]) {
@@ -394,7 +430,14 @@ export default {
             }
 
             let sanatizedFieldName = this.getSanitizedFieldName(field);
-            let BB = document.querySelector(`.${sanatizedFieldName}`);
+            let BB;
+            if (isLinked) {
+                BB = document.querySelector(`.${sanatizedFieldName}isLinked`);
+            }
+            else {
+
+                BB = document.querySelector(`.${sanatizedFieldName}`);
+            }
 
             window.addEventListener('mousemove', dragBB);
             window.addEventListener('mouseup', dragBBEnd);
