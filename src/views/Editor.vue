@@ -136,10 +136,10 @@ export default {
         eventBus.$on('handleZoom', (data) => {
             let onePrecentWidth = this.toFixedDecimal(this.initialImageContainerWidth / 100, 3)
             let onePrecentHeight = this.toFixedDecimal(this.initialImageContainerHeight / 100, 3)
-            
+
             this.imageToBeTaggedWidth = this.toFixedDecimal(onePrecentWidth * data, 3);
             this.imageToBeTaggedHeight = this.toFixedDecimal(onePrecentHeight * data, 3)
-            
+
             this.$nextTick(() => {
                 this.setPageConstants();
             })
@@ -454,8 +454,6 @@ export default {
         startNewBBDraw(e) {
             e.preventDefault();
             let newBBDraw = (e) => {
-                // const imageContainer = document.querySelector('.editor-image-container');
-
                 let newY = (e.clientY - prevY);
                 let newX = e.clientX - prevX;
                 newBB.style.height = newY + "px";
@@ -474,14 +472,21 @@ export default {
                         w: (parseInt(newBB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
                     }
 
-                    if (this.isNewFieldBeingLinked) {
+                    if (this.selectedPageConfig.fields) {
+                        console.log(true)
+                    } else {
+                        console.log(false)
+                    }
+
+                    if (this.isNewFieldBeingLinked && this.selectedPageConfig.fields) {
                         this.$set(this.selectedPageConfig.fields[this.newFieldBeingLinked], 'question', newBornBBCoords)
                         this.linkedFields.push(this.newFieldBeingLinked);
                         this.isNewFieldBeingLinked = false;
-                        console.log(this.linkedFields);     
-                        console.log(this.selectedPageConfig.fields)
-                    } else {
+                    } else if (this.selectedPageConfig.fields) {
                         this.$set(this.selectedPageConfig.fields, newField, newBornBBCoords)
+                    } else {
+                        this.$set(this.selectedPageConfig, 'fields', {newField : newBornBBCoords} )
+
                     }
                     this.$nextTick(() => {
                         this.setPageConstants();
