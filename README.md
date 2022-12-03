@@ -36,3 +36,11 @@ show coords of the selecte field
 - make dyamic classes for bb's and field-list 
 - remove the newBB after adding to the page 
 
+
+
+### tasks
+- cosider overflow x when dawing bb 
+- on new if no fields are present add fields in the config
+- new Bb is gettinng drawned wrt to the container but when zoom chnages it stays the same 
+- 
+

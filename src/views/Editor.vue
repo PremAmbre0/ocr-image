@@ -42,7 +42,7 @@
         <div class="fields-and-coords-wrapper">
             <div class="fields-and-coords-container">
                 <div v-for="(key, field) in     selectedPageConfig.fields" :key="field" class="field-list"
-                    :class="{ 'active': selectedField && selectedField === field }"
+                    :class="[getSanitizedFieldName(field) + 'menu', { 'active': selectedField && selectedField === field }]"
                     @click="setSelectedField(field), bringBBIntoView(field)">
                     <div class="fieldname">
                         {{ field }}
@@ -62,7 +62,7 @@
                             <v-btn v-else plain depressed tile @click="hideField(field)">Hide</v-btn>
                             <v-btn plain depressed tile>Edit</v-btn>
                             <v-btn plain depressed tile @click="deleteField(field)">Delete</v-btn>
-                            <v-btn plain depressed tile>Link Field</v-btn>
+                            <v-btn plain depressed tile @click="handleNewLinkedBBDraw(field)">Link Field</v-btn>
                         </v-list>
                     </v-menu>
                 </div>
@@ -113,6 +113,8 @@ export default {
             fieldsToHide: [],
             initialImageContainerHeight: null,
             initialImageContainerWidth: null,
+            newFieldBeingLinked: null,
+            isNewFieldBeingLinked: false,
             items: [
                 { title: 'Edit' },
                 { title: 'Delete' },
@@ -134,15 +136,14 @@ export default {
         eventBus.$on('handleZoom', (data) => {
             let onePrecentWidth = this.toFixedDecimal(this.initialImageContainerWidth / 100, 3)
             let onePrecentHeight = this.toFixedDecimal(this.initialImageContainerHeight / 100, 3)
-
+            
             this.imageToBeTaggedWidth = this.toFixedDecimal(onePrecentWidth * data, 3);
             this.imageToBeTaggedHeight = this.toFixedDecimal(onePrecentHeight * data, 3)
-
+            
             this.$nextTick(() => {
                 this.setPageConstants();
             })
         })
-        console.log(this.config)
     },
     mounted() {
         window.addEventListener('resize', this.handleWindowResize);
@@ -211,6 +212,7 @@ export default {
         },
         setPageConstants() {
             const imageContainer = document.querySelector('.editor-image-container');
+            console.log(this.linkedFields)
             const image = document.querySelector('.image-wrapper-image');
             this.scrollBarWidth = imageContainer.offsetWidth - imageContainer.clientWidth;
             this.imageToBeTaggedBoundingCLient = image.getBoundingClientRect();
@@ -472,8 +474,15 @@ export default {
                         w: (parseInt(newBB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
                     }
 
-
-                    this.$set(this.selectedPageConfig.fields, newField, newBornBBCoords)
+                    if (this.isNewFieldBeingLinked) {
+                        this.$set(this.selectedPageConfig.fields[this.newFieldBeingLinked], 'question', newBornBBCoords)
+                        this.linkedFields.push(this.newFieldBeingLinked);
+                        this.isNewFieldBeingLinked = false;
+                        console.log(this.linkedFields);     
+                        console.log(this.selectedPageConfig.fields)
+                    } else {
+                        this.$set(this.selectedPageConfig.fields, newField, newBornBBCoords)
+                    }
                     this.$nextTick(() => {
                         this.setPageConstants();
                         this.updateConfig()
@@ -493,9 +502,15 @@ export default {
 
             window.addEventListener('mousemove', newBBDraw);
             window.addEventListener('mouseup', endNewBBDraw);
+        },
+        handleNewLinkedBBDraw(field) {
+            let selectedFieldOption = document.querySelector('.' + this.getSanitizedFieldName(field) + 'menu')
+            selectedFieldOption.classList.add('is-being-linked')
+            this.newFieldBeingLinked = field;
+            this.isNewFieldBeingLinked = true;
         }
     }
-}
+}   
 </script>
 
 
@@ -505,7 +520,11 @@ export default {
 }
 
 .question-active {
-    background-color: rgba($color: pink, $alpha: 0.65);
+    background-color: rgba($color: pink, $alpha: 0.25);
+}
+
+.is-being-linked {
+    background-color: rgba($color: green, $alpha: 0.65);
 }
 
 .hidden {
@@ -566,7 +585,7 @@ export default {
         padding: 1%;
         width: 65vw;
         overflow-y: auto;
-        overflow-x: hidden;
+        overflow-x: auto;
         position: relative;
         scroll-behavior: smooth;
 
