@@ -11,7 +11,8 @@
         </div>
         <div class="editor-image-container">
             <div v-if="selectedPageConfig" class="image-wrapper"
-                :style="{ height: this.imageToBeTaggedHeight + 'px', width: this.imageToBeTaggedWidth + 'px' }">
+                :style="{ height: this.imageToBeTaggedHeight + 'px', width: this.imageToBeTaggedWidth + 'px' }"
+                @mouseleave.stop="handleMouseLeave()" @mouseover.stop="handleMouseOver()">
                 <div class="newbb"></div>
                 <img class="image-wrapper-image"
                     :style="{ height: this.imageToBeTaggedHeight + 'px', width: this.imageToBeTaggedWidth + 'px' }"
@@ -145,6 +146,7 @@ export default {
             dimensionBeingEdited: null,
             isLinkedFieldDimensionsBeingEdited: false,
             isNewFieldBeingLinked: false,
+            mouseOnImage: false,
             items: [
                 { title: 'Edit' },
                 { title: 'Delete' },
@@ -366,25 +368,27 @@ export default {
 
                 let startBBResize = (e) => {
                     e.stopPropagation();
-                    if (this.needForRaf) this.needForRaf = null;
-                    this.needForRaf = requestAnimationFrame(() => {
-                        let newY = prevY - e.clientY;
-                        let newX = prevX - e.clientX;
+                    if (this.mouseOnImage) {
+                        if (this.needForRaf) this.needForRaf = null;
+                        this.needForRaf = requestAnimationFrame(() => {
+                            let newY = prevY - e.clientY;
+                            let newX = prevX - e.clientX;
 
-                        if (currentResizer.classList.contains('top')) {
-                            BB.style.top = bbTop - newY + "px";
-                            BB.style.height = (bbBoundingClientRect.height + newY) + "px";
-                        }
-                        else if (currentResizer.classList.contains('left')) {
-                            BB.style.width = (bbBoundingClientRect.width + newX) + "px";
-                            BB.style.left = bbLeft - newX + "px"
-                        }
-                        else if (currentResizer.classList.contains('bottom')) {
-                            BB.style.height = (bbBoundingClientRect.height - newY) + "px";
-                        } else if (currentResizer.classList.contains('right')) {
-                            BB.style.width = (bbBoundingClientRect.width - newX) + "px";
-                        }
-                    })
+                            if (currentResizer.classList.contains('top')) {
+                                BB.style.top = bbTop - newY + "px";
+                                BB.style.height = (bbBoundingClientRect.height + newY) + "px";
+                            }
+                            else if (currentResizer.classList.contains('left')) {
+                                BB.style.width = (bbBoundingClientRect.width + newX) + "px";
+                                BB.style.left = bbLeft - newX + "px"
+                            }
+                            else if (currentResizer.classList.contains('bottom')) {
+                                BB.style.height = (bbBoundingClientRect.height - newY) + "px";
+                            } else if (currentResizer.classList.contains('right')) {
+                                BB.style.width = (bbBoundingClientRect.width - newX) + "px";
+                            }
+                        })
+                    }
 
                 }
 
@@ -399,7 +403,7 @@ export default {
 
                         }
                         else if (e.target.classList.contains('left')) {
-                            this.selectedPageConfig.fields[field]['question'].x = this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),0);
+                            this.selectedPageConfig.fields[field]['question'].x = this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                             this.selectedPageConfig.fields[field]['question'].w = this.toFixedDecimal((parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                         }
                         else if (e.target.classList.contains('bottom')) {
@@ -451,28 +455,28 @@ export default {
 
             const startBBDrag = (e) => {
                 e.stopPropagation();
-                
-                if (this.needForRaf) this.needForRaf = null;
-                this.needForRaf = requestAnimationFrame(() => {
-                    // const image = document.querySelector('.image-wrapper-image')
-                    // const imageContainer = document.querySelector('.editor-image-container');
-                    let newX = prevX - e.clientX;
-                    let newY = prevY - e.clientY;
-                    BB.style.top = bbTop - newY + "px";
-                    BB.style.left = bbLeft - newX + "px";
-                    if (newX > 0 || newY > 0) this.hasBBChanged = true;
-                })
+                if (this.mouseOnImage) {
+                    if (this.needForRaf) this.needForRaf = null;
+                    this.needForRaf = requestAnimationFrame(() => {
+                        // const image = document.querySelector('.image-wrapper-image')
+                        // const imageContainer = document.querySelector('.editor-image-container');
+                        let newX = prevX - e.clientX;
+                        let newY = prevY - e.clientY;
+                        BB.style.top = bbTop - newY + "px";
+                        BB.style.left = bbLeft - newX + "px";
+                        if (newX > 0 || newY > 0) this.hasBBChanged = true;
+                    })
+                }
             }
             const dragBBEnd = () => {
                 window.removeEventListener('mousemove', startBBDrag);
                 window.removeEventListener('mouseup', dragBBEnd);
-                window.removeEventListener('mouseleave', dragBBEnd);
 
 
                 if (this.hasBBChanged) {
                     if (isLinked) {
-                        this.selectedPageConfig.fields[field]['question'].y =  this.toFixedDecimal(((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
-                        this.selectedPageConfig.fields[field]['question'].x =  this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
+                        this.selectedPageConfig.fields[field]['question'].y = this.toFixedDecimal(((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
+                        this.selectedPageConfig.fields[field]['question'].x = this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                     } else {
                         this.selectedPageConfig.fields[field].y = this.toFixedDecimal(((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
                         this.selectedPageConfig.fields[field].x = this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
@@ -502,7 +506,6 @@ export default {
 
             window.addEventListener('mousemove', startBBDrag);
             window.addEventListener('mouseup', dragBBEnd);
-            window.addEventListener('mouseleave', dragBBEnd);
 
             const imageContainer = document.querySelector('.editor-image-container');
             let bbTop = (BB.getBoundingClientRect().y - this.imageContainerBoundingCLient.y) + imageContainer.scrollTop;
@@ -513,13 +516,16 @@ export default {
         },
         startNewBBDraw(e) {
             e.preventDefault();
+            this.selectedField = '';
             let newBBDraw = (e) => {
-                e.stopPropagation();
-                let newY = (e.clientY - prevY);
-                let newX = e.clientX - prevX;
-                newBB.style.height = newY + "px";
-                newBB.style.width = newX + "px";
-                if (newX > 0 || newY > 0) this.hasBBChanged = true;
+                if (this.mouseOnImage) {
+                    e.stopPropagation();
+                    let newY = (e.clientY - prevY);
+                    let newX = e.clientX - prevX;
+                    newBB.style.height = newY + "px";
+                    newBB.style.width = newX + "px";
+                    if (newX > 0 || newY > 0) this.hasBBChanged = true;
+                }
             }
             let endNewBBDraw = () => {
                 window.removeEventListener('mousemove', newBBDraw);
@@ -643,7 +649,16 @@ export default {
                     this.updateConfig();
                 })
             })
-        }
+        },
+        handleMouseLeave() {
+            this.mouseOnImage = false;
+            console.log(this.mouseOnImage);
+        },
+        handleMouseOver() {
+            this.mouseOnImage = true;
+            console.log(this.mouseOnImage);
+        },
+
     }
 }   
 </script>
