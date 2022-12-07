@@ -19,11 +19,14 @@ export default new Vuex.Store({
   mutations: {
     setConfig(state, config) {
       state.config = config;
+      window.localStorage.setItem("config", JSON.stringify(config));
     },
-    pushToUndoRef(state, config) {
-      state.undoRef.push(config)
-      console.log(state.undoRef)
-    }
+    setUndoRef(state, data) {
+      state.undoRef = data;
+    },
+    updateUndoRef(state, data) {
+      state.undoRef.push(data);
+    },
 
   },
   actions: {

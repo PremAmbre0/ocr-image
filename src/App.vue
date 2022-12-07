@@ -24,7 +24,7 @@
         </v-card>
         <v-tooltip bottom>
           <template v-slot:activator="{ on, attrs }">
-            <v-btn v-bind="attrs" v-on="on" icon @click="undo">
+            <v-btn :disabled="(undoRef.length <= 1)" v-bind="attrs" v-on="on" icon @click="undo">
               <v-icon color="black"> mdi-arrow-u-left-top</v-icon>
             </v-btn>
           </template>

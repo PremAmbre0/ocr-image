@@ -10,7 +10,8 @@
             </div>
         </div>
         <div class="editor-image-container">
-            <div v-if="selectedPageConfig" class="image-wrapper">
+            <div v-if="selectedPageConfig" class="image-wrapper"
+                :style="{ height: this.imageToBeTaggedHeight + 'px', width: this.imageToBeTaggedWidth + 'px' }">
                 <div class="newbb"></div>
                 <img class="image-wrapper-image"
                     :style="{ height: this.imageToBeTaggedHeight + 'px', width: this.imageToBeTaggedWidth + 'px' }"
@@ -45,7 +46,9 @@
                     :class="[getSanitizedFieldName(field) + 'menu', { 'active': selectedField && selectedField === field }]"
                     @click="setSelectedField(field), bringBBIntoView(field)">
                     <div class="fieldname">
-                        {{ field }}
+                        <span v-if="fieldBeingEdited !== field">{{ field }}</span>
+                        <v-text-field v-else :label="field" :value="field" autofocus @focus="handleInputFieldFocus"
+                            @keyup="handleFieldEditKeyUp($event, field)"></v-text-field>
                     </div>
                     <v-menu absolute offset-y style="max-width: 600px">
                         <template v-slot:activator="{ on, attrs }">
@@ -60,25 +63,49 @@
                             <v-btn v-if="fieldsToHide.includes(field)" plain depressed tile @click="showField(field)">
                                 Show</v-btn>
                             <v-btn v-else plain depressed tile @click="hideField(field)">Hide</v-btn>
-                            <v-btn plain depressed tile>Edit</v-btn>
+                            <v-btn plain depressed tile @click="handleFieldEdit(field)">Edit</v-btn>
                             <v-btn plain depressed tile @click="deleteField(field)">Delete</v-btn>
                             <v-btn plain depressed tile @click="handleNewLinkedBBDraw(field)">Link Field</v-btn>
                         </v-list>
                     </v-menu>
                 </div>
             </div>
-            <div class="coords-showcase">
-                <div id="coords" v-if="selectedField">
-                    <div class="coords_name">{{ selectedField }}</div>
-                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['x']" label="x" type="number"
-                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
-                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['y']" label="y" type="number"
-                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
-                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['h']" label="h" type="number"
-                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
-                    <v-text-field dense v-model="selectedPageConfig.fields[selectedField]['w']" label="w" type="number"
-                        @input="updateStyleAttriutesOfBBForGivenField(selectedField)"></v-text-field>
-                </div>
+            <div class="coords-showcase" v-if="selectedField">
+                <span class="field-name">Name: {{ selectedField }}</span>
+                <template v-for="(coord, index) of coordsPositionOrder" id="coords">
+                    <div :key="index">
+                        <span v-if="dimensionBeingEdited !== coord" @click.stop="handleDimensionCoordsClick(coord)">{{
+                                coord
+                        }}:{{
+        selectedPageConfig.fields[selectedField][coord]
+}}</span>
+                        <v-text-field v-else-if="
+                            dimensionBeingEdited == coord && !isLinkedFieldDimensionsBeingEdited
+                        " type="number" :label="coord" :value="selectedPageConfig.fields[selectedField][coord]"
+                            autofocus @click.stop="" @keyup="handleDimensionCoordEditKeyUp($event, coord)"
+                            @input="handleDimensionCoordEditInput($event, coord)"></v-text-field>
+                    </div>
+                </template>
+
+                <template v-if="doesFieldHaveLink(selectedField)">
+                    <span class="field-name">Question</span>
+                    <template v-for="(coord, index) of coordsPositionOrder" id="coords">
+                        <div :key="'question_' + coord + index">
+                            <span v-if="dimensionBeingEdited !== coord"
+                                @click.stop="handleLinkedFieldDimensionCoordsClick(coord)">{{
+                                        coord
+                                }}:{{
+        selectedPageConfig.fields[selectedField]['question'][coord]
+}}</span>
+                            <v-text-field v-else-if="
+                                dimensionBeingEdited == coord && isLinkedFieldDimensionsBeingEdited
+                            " type="number" :label="coord"
+                                :value="selectedPageConfig.fields[selectedField]['question'][coord]" autofocus
+                                @click.stop="" @keyup="handleDimensionCoordEditKeyUp($event, coord)"
+                                @input="handleDimensionCoordEditInput($event, coord)"></v-text-field>
+                        </div>
+                    </template>
+                </template>
             </div>
         </div>
     </div>
@@ -114,19 +141,25 @@ export default {
             initialImageContainerHeight: null,
             initialImageContainerWidth: null,
             newFieldBeingLinked: null,
+            fieldBeingEdited: null,
+            dimensionBeingEdited: null,
+            isLinkedFieldDimensionsBeingEdited: false,
             isNewFieldBeingLinked: false,
             items: [
                 { title: 'Edit' },
                 { title: 'Delete' },
                 { title: 'Link Field' }
             ],
+            coordsPositionOrder: ['x', 'y', 'h', 'w'],
         }
     },
     created() {
         if (localStorage.getItem('config')) {
             this.setConfig(JSON.parse(localStorage.getItem('config')));
+            this.setUn
         }
         this.selectedPageConfig = this.config.pages[0];
+        this.updateConfig();
         const fields = new Object(this.config.pages[0].fields);
         for (const field in fields) {
             if ('question' in this.selectedPageConfig.fields[field]) {
@@ -144,30 +177,37 @@ export default {
                 this.setPageConstants();
             })
         })
+        eventBus.$on('undoConfig', this.handleUndo);
     },
     mounted() {
         window.addEventListener('resize', this.handleWindowResize);
-        const imageContainer = document.querySelector('.editor-image-container');
-        this.initialImageContainerHeight = imageContainer.getBoundingClientRect().height;
-        this.initialImageContainerWidth = imageContainer.getBoundingClientRect().width;
         this.setDimensionsOfImage()
+        this.$nextTick(() => {
+            const imageContainer = document.querySelector('.image-wrapper-image');
+            this.initialImageContainerHeight = imageContainer.getBoundingClientRect().height;
+            this.initialImageContainerWidth = imageContainer.getBoundingClientRect().width;
+        })
     },
     computed: {
-        ...mapGetters(['config']),
+        ...mapGetters(['config', 'undoRef']),
     },
     methods: {
-        ...mapMutations(['setConfig']),
+        ...mapMutations(['setConfig', 'updateUndoRef', 'setUndoRef']),
         switchToInput(e) {
             e.target.nextSibling.focus;
             console.log(e.target.nextSibling.focus)
         },
         setDimensionsOfImage() {
             const imageContainer = document.querySelector('.editor-image-container');
-            let widthRatio = imageContainer.getBoundingClientRect().width / this.selectedPageConfig.width;
-            let HeightRatio = imageContainer.getBoundingClientRect().height / this.selectedPageConfig.height;
-            let ratio = widthRatio < HeightRatio ? widthRatio : HeightRatio;
-            this.imageToBeTaggedHeight = Math.round(this.selectedPageConfig.height * ratio);
-            this.imageToBeTaggedWidth = Math.round(this.selectedPageConfig.width * ratio);
+            // let widthRatio = imageContainer.getBoundingClientRect().width / this.selectedPageConfig.width;
+            // let HeightRatio = imageContainer.getBoundingClientRect().height / this.selectedPageConfig.height;
+            // let ratio = widthRatio < HeightRatio ? widthRatio : HeightRatio;
+            // this.imageToBeTaggedHeight = Math.round(this.selectedPageConfig.height * ratio);
+            // this.imageToBeTaggedWidth = Math.round(this.selectedPageConfig.width * ratio);
+
+            let changeInDimensionInPercenntage = imageContainer.getBoundingClientRect().width / (this.selectedPageConfig.width / 100)
+            this.imageToBeTaggedWidth = ((this.selectedPageConfig.width / 100) * changeInDimensionInPercenntage)
+            this.imageToBeTaggedHeight = (this.selectedPageConfig.height / 100) * changeInDimensionInPercenntage
         },
         getSanitizedFieldName(field) {
             if (field) {
@@ -181,15 +221,27 @@ export default {
             this.fieldsToHide = this.fieldsToHide.filter(e => e !== field)
         },
         updateConfig() {
-            let tempConfigString = JSON.stringify(this.config);
-            let tempConfig = JSON.parse(tempConfigString);
+            let tempConfig = JSON.parse(JSON.stringify(this.config));
 
             let indexOfselectedPage = this.config['pages'].indexOf(this.config['pages'].find(o => o.description === this.selectedPageConfig.description));
 
             tempConfig.pages[indexOfselectedPage] = this.selectedPageConfig
-
             this.setConfig(tempConfig);
-
+            this.updateUndoRef({
+                'indexOfselectedPage': indexOfselectedPage,
+                'config': JSON.parse(JSON.stringify(tempConfig))
+            })
+            this.selectedPageConfig = this.config.pages[indexOfselectedPage];
+        },
+        handleUndo() {
+            let tempUndoRef = JSON.parse(JSON.stringify(this.undoRef));
+            tempUndoRef.pop()
+            this.setConfig(JSON.parse(JSON.stringify(tempUndoRef[tempUndoRef.length - 1].config)))
+            this.setUndoRef(tempUndoRef)
+            this.selectedPageConfig = this.config.pages[tempUndoRef[tempUndoRef.length - 1].indexOfselectedPage];
+            this.$nextTick(() => {
+                this.setPageConstants();
+            })
         },
         updateSelectedPage(page) {
             this.selectedPageConfig = page;
@@ -207,12 +259,11 @@ export default {
             this.$delete(this.selectedPageConfig.fields, field);
             this.$nextTick(() => {
                 this.setPageConstants();
-                console.log(this.linkedFields)
+                this.updateConfig();
             })
         },
         setPageConstants() {
             const imageContainer = document.querySelector('.editor-image-container');
-            console.log(this.linkedFields)
             const image = document.querySelector('.image-wrapper-image');
             this.scrollBarWidth = imageContainer.offsetWidth - imageContainer.clientWidth;
             this.imageToBeTaggedBoundingCLient = image.getBoundingClientRect();
@@ -222,13 +273,18 @@ export default {
             this.changeInHeightOfRenderedImageWRTOriginalImage = this.toFixedDecimal(this.imageToBeTaggedBoundingCLient.height / (this.selectedPageConfig.height / 100), 3);
 
             this.relativeTop = this.toFixedDecimal(image.getBoundingClientRect().top - this.imageContainerBoundingCLient.top, 3) + imageContainer.scrollTop;
-            this.relativeLeft = this.toFixedDecimal(image.getBoundingClientRect().left - this.imageContainerBoundingCLient.left, 3)
+            this.relativeLeft = this.toFixedDecimal(image.getBoundingClientRect().left - this.imageContainerBoundingCLient.left, 3) + imageContainer.scrollLeft;
             this.changeInHeightOfOriginalImageWRTRenderedImage = this.toFixedDecimal(this.selectedPageConfig.height / ((this.imageContainerBoundingCLient.height) / 100), 3);
             this.renderBoundingBoxes();
         },
         setSelectedField(field) {
             if (field) {
                 this.selectedField = field;
+            }
+        },
+        handleInputFieldFocus(e) {
+            if (e.target) {
+                e.target.select();
             }
         },
         bringBBIntoView(field) {
@@ -279,12 +335,12 @@ export default {
         },
         handleWindowResize() {
             setTimeout(() => {
+                this.setDimensionsOfImage();
                 this.setPageConstants()
             }, 100);
         },
         startBBResize(e, field, isLinked) {
             console.log(isLinked)
-
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let BB;
             if (isLinked) {
@@ -294,9 +350,7 @@ export default {
 
                 BB = document.querySelector(`.${sanatizedFieldName}`);
             }
-            let currentResizer;
-            const resizers = BB.childNodes;
-
+            let currentResizer = e.target;
 
             let resizeBB = (e) => {
                 let prevY = e.clientY;
@@ -307,10 +361,11 @@ export default {
                 const imageContainer = document.querySelector('.editor-image-container');
 
                 let bbTop = (bbBoundingClientRect.y - this.imageContainerBoundingCLient.y) + imageContainer.scrollTop;
-                let bbLeft = bbBoundingClientRect.x - this.imageContainerBoundingCLient.x;
+                let bbLeft = bbBoundingClientRect.x - this.imageContainerBoundingCLient.x; ++imageContainer.scrollLeft;
 
 
                 let startBBResize = (e) => {
+                    e.stopPropagation();
                     if (this.needForRaf) this.needForRaf = null;
                     this.needForRaf = requestAnimationFrame(() => {
                         let newY = prevY - e.clientY;
@@ -339,37 +394,37 @@ export default {
 
                     if (isLinked) {
                         if (e.target.classList.contains('top')) {
-                            this.selectedPageConfig.fields[field]['question'].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
-                            this.selectedPageConfig.fields[field]['question'].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                            this.selectedPageConfig.fields[field]['question'].y = this.toFixedDecimal(((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
+                            this.selectedPageConfig.fields[field]['question'].h = this.toFixedDecimal((parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
 
                         }
                         else if (e.target.classList.contains('left')) {
-                            this.selectedPageConfig.fields[field]['question'].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
-                            this.selectedPageConfig.fields[field]['question'].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                            this.selectedPageConfig.fields[field]['question'].x = this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),0);
+                            this.selectedPageConfig.fields[field]['question'].w = this.toFixedDecimal((parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                         }
                         else if (e.target.classList.contains('bottom')) {
-                            this.selectedPageConfig.fields[field]['question'].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                            this.selectedPageConfig.fields[field]['question'].h = this.toFixedDecimal((parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
 
                         } else if (e.target.classList.contains('right')) {
-                            this.selectedPageConfig.fields[field]['question'].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                            this.selectedPageConfig.fields[field]['question'].w = this.toFixedDecimal((parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                         }
                     }
                     else {
 
                         if (e.target.classList.contains('top')) {
-                            this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
-                            this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                            this.selectedPageConfig.fields[field].y = this.toFixedDecimal(((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
+                            this.selectedPageConfig.fields[field].h = this.toFixedDecimal((parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
 
                         }
                         else if (e.target.classList.contains('left')) {
-                            this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
-                            this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                            this.selectedPageConfig.fields[field].x = this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
+                            this.selectedPageConfig.fields[field].w = this.toFixedDecimal((parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                         }
                         else if (e.target.classList.contains('bottom')) {
-                            this.selectedPageConfig.fields[field].h = (parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
+                            this.selectedPageConfig.fields[field].h = this.toFixedDecimal((parseInt(BB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
 
                         } else if (e.target.classList.contains('right')) {
-                            this.selectedPageConfig.fields[field].w = (parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                            this.selectedPageConfig.fields[field].w = this.toFixedDecimal((parseInt(BB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                         }
                     }
 
@@ -381,9 +436,7 @@ export default {
                 window.addEventListener('mousemove', startBBResize)
                 window.addEventListener('mouseup', endBBResize)
             }
-            resizers.forEach((resizer) => {
-                resizer.addEventListener("mousedown", resizeBB(e));
-            })
+            currentResizer.addEventListener("mousedown", resizeBB(e));
 
         },
         handleBBMouseDown(e, field, isLinked) {
@@ -396,9 +449,13 @@ export default {
             e = e || window.event;
             e.preventDefault();
 
-            const dragBB = (e) => {
+            const startBBDrag = (e) => {
+                e.stopPropagation();
+                
                 if (this.needForRaf) this.needForRaf = null;
                 this.needForRaf = requestAnimationFrame(() => {
+                    // const image = document.querySelector('.image-wrapper-image')
+                    // const imageContainer = document.querySelector('.editor-image-container');
                     let newX = prevX - e.clientX;
                     let newY = prevY - e.clientY;
                     BB.style.top = bbTop - newY + "px";
@@ -407,16 +464,18 @@ export default {
                 })
             }
             const dragBBEnd = () => {
-                window.removeEventListener('mousemove', dragBB);
+                window.removeEventListener('mousemove', startBBDrag);
                 window.removeEventListener('mouseup', dragBBEnd);
+                window.removeEventListener('mouseleave', dragBBEnd);
+
 
                 if (this.hasBBChanged) {
                     if (isLinked) {
-                        this.selectedPageConfig.fields[field]['question'].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
-                        this.selectedPageConfig.fields[field]['question'].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        this.selectedPageConfig.fields[field]['question'].y =  this.toFixedDecimal(((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
+                        this.selectedPageConfig.fields[field]['question'].x =  this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                     } else {
-                        this.selectedPageConfig.fields[field].y = ((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100);
-                        this.selectedPageConfig.fields[field].x = ((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100);
+                        this.selectedPageConfig.fields[field].y = this.toFixedDecimal(((parseInt(BB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0);
+                        this.selectedPageConfig.fields[field].x = this.toFixedDecimal(((parseInt(BB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0);
                     }
 
 
@@ -441,12 +500,13 @@ export default {
                 BB = document.querySelector(`.${sanatizedFieldName}`);
             }
 
-            window.addEventListener('mousemove', dragBB);
+            window.addEventListener('mousemove', startBBDrag);
             window.addEventListener('mouseup', dragBBEnd);
+            window.addEventListener('mouseleave', dragBBEnd);
 
             const imageContainer = document.querySelector('.editor-image-container');
             let bbTop = (BB.getBoundingClientRect().y - this.imageContainerBoundingCLient.y) + imageContainer.scrollTop;
-            let bbLeft = BB.getBoundingClientRect().x - this.imageContainerBoundingCLient.x;
+            let bbLeft = BB.getBoundingClientRect().x - this.imageContainerBoundingCLient.x + + imageContainer.scrollLeft;
 
             let prevX = e.clientX;
             let prevY = e.clientY;
@@ -454,6 +514,7 @@ export default {
         startNewBBDraw(e) {
             e.preventDefault();
             let newBBDraw = (e) => {
+                e.stopPropagation();
                 let newY = (e.clientY - prevY);
                 let newX = e.clientX - prevX;
                 newBB.style.height = newY + "px";
@@ -466,16 +527,10 @@ export default {
                 if (this.hasBBChanged) {
                     const newField = "new_field_" + uuidv4();
                     const newBornBBCoords = {
-                        y: ((parseInt(newBB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
-                        x: ((parseInt(newBB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
-                        h: (parseInt(newBB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100),
-                        w: (parseInt(newBB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100),
-                    }
-
-                    if (this.selectedPageConfig.fields) {
-                        console.log(true)
-                    } else {
-                        console.log(false)
+                        y: this.toFixedDecimal(((parseInt(newBB.style.top) - this.relativeTop) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0),
+                        x: this.toFixedDecimal(((parseInt(newBB.style.left) - this.relativeLeft) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0),
+                        h: this.toFixedDecimal((parseInt(newBB.style.height) / (this.imageToBeTaggedBoundingCLient.height / 100)) * (this.selectedPageConfig.height / 100), 0),
+                        w: this.toFixedDecimal((parseInt(newBB.style.width) / (this.imageToBeTaggedBoundingCLient.width / 100)) * (this.selectedPageConfig.width / 100), 0),
                     }
 
                     if (this.isNewFieldBeingLinked && this.selectedPageConfig.fields) {
@@ -485,12 +540,13 @@ export default {
                     } else if (this.selectedPageConfig.fields) {
                         this.$set(this.selectedPageConfig.fields, newField, newBornBBCoords)
                     } else {
-                        this.$set(this.selectedPageConfig, 'fields', {newField : newBornBBCoords} )
-
+                        this.selectedPageConfig['fields'] = {}
+                        this.selectedPageConfig['fields'][newField] = newBornBBCoords
+                        this.setSelectedField(newField)
                     }
                     this.$nextTick(() => {
                         this.setPageConstants();
-                        this.updateConfig()
+                        this.updateConfig();
                     })
                     newBB.style.top = "-100vh";
                     newBB.style.left = "-100vW";
@@ -513,6 +569,80 @@ export default {
             selectedFieldOption.classList.add('is-being-linked')
             this.newFieldBeingLinked = field;
             this.isNewFieldBeingLinked = true;
+        },
+        handleFieldEdit(field) {
+            this.fieldBeingEdited = field
+        },
+        handleFieldEditKeyUp(e, field) {
+            e.stopPropagation();
+            if (e.key == "Escape" || e.code == "Escape") {
+                this.fieldBeingEdited = null;
+            } else if (e.key == "Enter" || e.code == "Enter") {
+                if (field != e.target.value) {
+                    const fieldInSelectedPage = Object.keys(
+                        this.selectedPageConfig.fields
+                    );
+                    const sanitizedFieldsInSelectedPage = fieldInSelectedPage.map((e) =>
+                        this.getSanitizedFieldName(e)
+                    );
+                    if (sanitizedFieldsInSelectedPage.includes(this.getSanitizedFieldName(e.target.value))) {
+                        alert(`The Field name ${e.target.value} already exists. Please make sure field names are unique`)
+                        return;
+                    }
+
+                    const oldEle = this.selectedPageConfig.fields[field];
+                    delete this.selectedPageConfig.fields[field];
+                    this.selectedPageConfig.fields[e.target.value] = oldEle;
+                }
+                this.fieldBeingEdited = null;
+                this.updateConfig();
+                this.$nextTick(() => {
+                    this.renderBoundingBoxes();
+                    this.setSelectedField(e.target.valu);
+                });
+            }
+        },
+        handleDimensionCoordsClick(coord) {
+            this.fieldBeingEdited = null;
+            this.isLinkedFieldDimensionsBeingEdited = false;
+            this.dimensionBeingEdited = coord;
+        },
+        handleLinkedFieldDimensionCoordsClick(coord) {
+            this.fieldBeingEdited = null;
+            this.isLinkedFieldDimensionsBeingEdited = true
+
+            this.dimensionBeingEdited = coord;
+        },
+        handleDimensionCoordEditKeyUp(e) {
+            if (e.key == "Escape" || e.code == "Escape") {
+                this.dimensionBeingEdited = null;
+            } else if (e.key == "Enter" || e.code == "Enter") {
+                this.dimensionBeingEdited = null;
+
+            }
+        },
+        doesFieldHaveLink(field) {
+            return Object.prototype.hasOwnProperty.call(this.selectedPageConfig.fields[field], "question");
+        },
+        handleDimensionCoordEditInput(e, coord) {
+            if (this.needForRAF) cancelAnimationFrame(this.needForRAF);
+            let val = e
+            console.log(this.isLinkedFieldDimensionsBeingEdited)
+            this.needForRAF = requestAnimationFrame(() => {
+                if (this.isLinkedFieldDimensionsBeingEdited) {
+                    console.log(this.selectedPageConfig.fields[this.selectedField].question[coord])
+                    this.selectedPageConfig.fields[this.selectedField].question[coord] = val;
+                } else {
+                    console.log(val)
+                    this.selectedPageConfig.fields[this.selectedField][coord] = val;
+
+                }
+
+                this.$nextTick(() => {
+                    this.renderBoundingBoxes();
+                    this.updateConfig();
+                })
+            })
         }
     }
 }   
@@ -589,8 +719,8 @@ export default {
         height: 100vh;
         padding: 1%;
         width: 65vw;
-        overflow-y: auto;
-        overflow-x: auto;
+        overflow-y: overlay;
+        overflow-x: overlay;
         position: relative;
         scroll-behavior: smooth;
 
@@ -636,8 +766,8 @@ export default {
         }
 
         .image-wrapper {
-            display: flex;
-            justify-content: center;
+            width: 100%;
+            margin: 0 auto;
 
             img {
                 -webkit-user-select: none;
