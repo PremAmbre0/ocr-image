@@ -1,6 +1,6 @@
 <template>
     <div class="editor" v-if="config">
-        <div class="image-list-container">
+        <div class="image-list-container" @click="this.unselectCordsAndFieldNameTextField()">
             <div class="pages" v-for="page in config.pages" :key="page.id" @click="updateSelectedPage(page)">
                 <img class="pages-img" :src="'http://34.93.226.10/files/' + config.id + '/' + page.id + '.png'"
                     alt="" />
@@ -9,7 +9,7 @@
                 </div>
             </div>
         </div>
-        <div class="editor-image-container">
+        <div class="editor-image-container" @click="unselectCordsAndFieldNameTextField()">
             <div v-if="selectedPageConfig" class="image-wrapper"
                 :style="{ height: this.imageToBeTaggedHeight + 'px', width: this.imageToBeTaggedWidth + 'px' }"
                 @mouseleave.stop="handleMouseLeave()" @mouseover.stop="handleMouseOver()">
@@ -112,6 +112,8 @@
     </div>
 </template>
 
+
+
 <script>
 import { mapGetters, mapMutations } from 'vuex';
 import { eventBus } from "@/eventBus";
@@ -162,6 +164,7 @@ export default {
         }
         this.selectedPageConfig = this.config.pages[0];
         this.updateConfig();
+        console.log(this.config)
         const fields = new Object(this.config.pages[0].fields);
         for (const field in fields) {
             if ('question' in this.selectedPageConfig.fields[field]) {
@@ -180,6 +183,18 @@ export default {
             })
         })
         eventBus.$on('undoConfig', this.handleUndo);
+        // changeTemplateName
+        eventBus.$on('handleTemplateNameInput',(e)=>{
+            let tempConfig = JSON.parse(JSON.stringify(this.config))
+            tempConfig.name = e
+        });
+        eventBus.$on('changeTemplateName',(e)=>{
+            let tempConfig = JSON.parse(JSON.stringify(this.config))
+            tempConfig.name = e
+            this.setConfig(tempConfig)
+            this.updateConfig();
+        });
+
     },
     mounted() {
         window.addEventListener('resize', this.handleWindowResize);
@@ -342,7 +357,7 @@ export default {
             }, 100);
         },
         startBBResize(e, field, isLinked) {
-            console.log(isLinked)
+            this.unselectCordsAndFieldNameTextField();
             let sanatizedFieldName = this.getSanitizedFieldName(field);
             let BB;
             if (isLinked) {
@@ -444,11 +459,13 @@ export default {
 
         },
         handleBBMouseDown(e, field, isLinked) {
+            this.unselectCordsAndFieldNameTextField();
             if (e.target.classList.contains('bb_side')) this.startBBResize(e, field, isLinked);
             if (e.target.classList.contains('bounding-box')) this.startBBDrag(e, field, isLinked)
         },
 
         startBBDrag(e, field, isLinked) {
+            this.unselectCordsAndFieldNameTextField();
             console.log(isLinked)
             e = e || window.event;
             e.preventDefault();
@@ -516,6 +533,7 @@ export default {
         },
         startNewBBDraw(e) {
             e.preventDefault();
+            this.unselectCordsAndFieldNameTextField();
             this.selectedField = '';
             let newBBDraw = (e) => {
                 if (this.mouseOnImage) {
@@ -633,15 +651,11 @@ export default {
         handleDimensionCoordEditInput(e, coord) {
             if (this.needForRAF) cancelAnimationFrame(this.needForRAF);
             let val = e
-            console.log(this.isLinkedFieldDimensionsBeingEdited)
             this.needForRAF = requestAnimationFrame(() => {
                 if (this.isLinkedFieldDimensionsBeingEdited) {
-                    console.log(this.selectedPageConfig.fields[this.selectedField].question[coord])
                     this.selectedPageConfig.fields[this.selectedField].question[coord] = val;
                 } else {
-                    console.log(val)
-                    this.selectedPageConfig.fields[this.selectedField][coord] = val;
-
+                    this.selectedPageConfig.fields[this.selectedField][coord] = val;    
                 }
 
                 this.$nextTick(() => {
@@ -652,13 +666,14 @@ export default {
         },
         handleMouseLeave() {
             this.mouseOnImage = false;
-            console.log(this.mouseOnImage);
         },
         handleMouseOver() {
             this.mouseOnImage = true;
-            console.log(this.mouseOnImage);
         },
-
+        unselectCordsAndFieldNameTextField(){
+            this.fieldBeingEdited= null;
+            this.dimensionBeingEdited= null;
+        }
     }
 }   
 </script>

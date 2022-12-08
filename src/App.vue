@@ -3,19 +3,20 @@
     <v-app-bar app>
       <v-toolbar-title class="font-weight-bold">OCR Template Configuration Tool</v-toolbar-title>
       <v-spacer></v-spacer>
-      <v-text-field label="Template Name" hide-details></v-text-field>
+      <v-text-field v-if="this.config" label="Template Name" :value="this.config.name" hide-details @input="handleTemplateNameChangeInput($event)" 
+      @change="handleTemplateNameChange($event)"></v-text-field>
       <v-spacer></v-spacer>
       <template>
         <v-card flat color="transparent" width="20%">
           <v-card-text class="pa-0">
             <v-slider v-model="zoom" dense thumb-label="always" thumb-size="20" min="0" max="200" step="1" hide-details>
               <template v-slot:prepend>
-                <v-icon color="black">
+                <v-icon color="black"  @click="(zoom-=1)">
                   mdi-magnify-minus-outline
                 </v-icon>
               </template>
               <template v-slot:append>
-                <v-icon color="black">
+                <v-icon color="black" @click="(zoom+=1)">
                   mdi-magnify-plus-outline
                 </v-icon>
               </template>
@@ -101,6 +102,11 @@ export default {
       this.exportFile(this.config)
     }, undo() {
       eventBus.$emit('undoConfig')
+    },handleTemplateNameChangeInput(e){
+      eventBus.$emit('handleTemplateNameInput',e)
+    },handleTemplateNameChange(e){
+      eventBus.$emit('changeTemplateName',e)
+      
     }
 
   }
